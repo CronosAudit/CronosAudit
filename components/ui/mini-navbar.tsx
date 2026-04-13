@@ -14,7 +14,7 @@ export function Navbar() {
 
           <div className="leading-tight">
             <p className="text-sm font-semibold tracking-[0.22em] text-[#f4e7b2]">
-              CRONOS
+              Chronos
             </p>
             <p className="text-xs uppercase tracking-[0.32em] text-zinc-400">
               Audit

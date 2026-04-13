@@ -13,15 +13,15 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://www.cronosaudit.com.br"),
+  metadataBase: new URL("https://www.Chronosaudit.com.br"),
   title: {
-    default: "Cronos Audit | Plataforma de IA para Auditoria com Governança e Rastreabilidade",
-    template: "%s | Cronos Audit",
+    default: "Chronos Audit | Plataforma de IA para Auditoria com Governança e Rastreabilidade",
+    template: "%s | Chronos Audit",
   },
   description:
-    "Cronos Audit é uma plataforma de inteligência artificial para auditoria, com foco em governança, rastreabilidade, conformidade, análise de riscos, documentação de evidências e uso ético da IA.",
+    "Chronos Audit é uma plataforma de inteligência artificial para auditoria, com foco em governança, rastreabilidade, conformidade, análise de riscos, documentação de evidências e uso ético da IA.",
   keywords: [
-    "Cronos Audit",
+    "Chronos Audit",
     "auditoria",
     "auditoria com IA",
     "inteligência artificial para auditoria",
@@ -40,10 +40,10 @@ export const metadata: Metadata = {
     "firmas de auditoria",
     "auditoria no Brasil",
   ],
-  authors: [{ name: "Cronos Audit" }],
-  creator: "Cronos Audit",
-  publisher: "Cronos Audit",
-  applicationName: "Cronos Audit",
+  authors: [{ name: "Chronos Audit" }],
+  creator: "Chronos Audit",
+  publisher: "Chronos Audit",
+  applicationName: "Chronos Audit",
   category: "technology",
   classification: "Business, Audit, Artificial Intelligence, Compliance",
   robots: {
@@ -59,15 +59,15 @@ export const metadata: Metadata = {
     },
   },
   alternates: {
-    canonical: "https://www.cronosaudit.com.br",
+    canonical: "https://www.Chronosaudit.com.br",
   },
   openGraph: {
     type: "website",
     locale: "pt_BR",
-    url: "https://www.cronosaudit.com.br",
-    siteName: "Cronos Audit",
+    url: "https://www.Chronosaudit.com.br",
+    siteName: "Chronos Audit",
     title:
-      "Cronos Audit | Plataforma de IA para Auditoria com Governança e Rastreabilidade",
+      "Chronos Audit | Plataforma de IA para Auditoria com Governança e Rastreabilidade",
     description:
       "Plataforma de inteligência artificial para auditoria com foco em governança, rastreabilidade, análise de riscos, conformidade e documentação estruturada de evidências.",
     images: [
@@ -75,18 +75,18 @@ export const metadata: Metadata = {
         url: "/og-image.jpg",
         width: 1200,
         height: 630,
-        alt: "Cronos Audit - Plataforma de IA para Auditoria",
+        alt: "Chronos Audit - Plataforma de IA para Auditoria",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
     title:
-      "Cronos Audit | Plataforma de IA para Auditoria com Governança e Rastreabilidade",
+      "Chronos Audit | Plataforma de IA para Auditoria com Governança e Rastreabilidade",
     description:
       "Inteligência artificial aplicada à auditoria com uso ético, governança, rastreabilidade e apoio à documentação de evidências.",
     images: ["/og-image.jpg"],
-    creator: "@cronosaudit",
+    creator: "@Chronosaudit",
   },
   icons: {
     icon: "/favicon.ico",

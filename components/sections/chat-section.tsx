@@ -93,7 +93,7 @@ export function ChatSection() {
             <div className="mx-auto max-w-4xl text-center">
               <div className="inline-flex items-center gap-2 rounded-full border border-[#d4af37]/20 bg-[#d4af37]/10 px-4 py-1 text-sm text-[#f4e7b2]">
                 <Sparkles className="size-4" />
-                Assistente Cronos Audit
+                Assistente Chronos Audit
               </div>
 
               <h1 className="mt-5 text-3xl font-semibold tracking-tight text-white sm:text-4xl md:text-5xl">

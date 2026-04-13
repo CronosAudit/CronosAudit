@@ -27,7 +27,7 @@ export function FeaturesSection() {
           </h2>
 
           <p className="mt-4 text-base leading-7 text-zinc-300 md:text-lg">
-            O Cronos Audit une inteligência artificial, rastreabilidade e
+            O Chronos Audit une inteligência artificial, rastreabilidade e
             governança em uma experiência moderna para apoiar firmas e auditores
             em todas as etapas do trabalho.
           </p>

@@ -105,7 +105,7 @@ export function HeroSection() {
                   </h1>
 
                   <p className="mx-auto mt-8 max-w-3xl text-balance text-lg text-zinc-300 md:text-xl">
-                    O Cronos Audit apoia firmas e auditores independentes no
+                    O Chronos Audit apoia firmas e auditores independentes no
                     uso ético e responsável da inteligência artificial em
                     planejamento, execução, análise de riscos e documentação de
                     evidências.
@@ -220,7 +220,7 @@ export function HeroSection() {
                             </h3>
                           </div>
                           <div className="rounded-full border border-[#d4af37]/30 bg-[#d4af37]/10 px-3 py-1 text-xs text-[#f4e7b2]">
-                            Cronos Audit
+                            Chronos Audit
                           </div>
                         </div>
 
@@ -294,7 +294,7 @@ export function HeroSection() {
                 href="#solucoes"
                 className="text-sm text-[#f4e7b2] duration-150 hover:opacity-80"
               >
-                <span>Explorar soluções do Cronos Audit</span>
+                <span>Explorar soluções do Chronos Audit</span>
                 <ChevronRight className="ml-1 inline-block size-3" />
               </Link>
             </div>
@@ -442,7 +442,7 @@ function Logo() {
       </div>
       <div className="leading-tight">
         <p className="text-sm font-semibold tracking-[0.22em] text-[#f4e7b2]">
-          CRONOS
+          Chronos
         </p>
         <p className="text-xs uppercase tracking-[0.32em] text-zinc-400">
           Audit
