@@ -1,0 +1,203 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@theme inline {
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-serif: "Instrument Serif", Georgia, serif;
+  --font-display: "Inter Display", "Inter", system-ui, sans-serif;
+  --font-mono: "Fragment Mono", monospace;
+
+  --color-background: var(--bg-0);
+  --color-foreground: var(--text-100);
+}
+
+/* =========================================
+   CRONOS AUDIT — inspirado no estilo Quorum
+========================================= */
+:root {
+  /* Base */
+  --bg-0: #000000;
+  --bg-100: #0d0d0d;
+  --bg-200: #121212;
+  --bg-300: #1a1a1a;
+
+  /* Texto */
+  --text-100: #ffffff;
+  --text-200: #f2f5f5;
+  --text-300: #bdbdbd;
+  --text-400: #828282;
+  --text-500: #4f4f4f;
+
+  /* Accent principal */
+  --accent-amber: #ffc65c;
+  --accent-amber-soft: rgba(255, 198, 92, 0.12);
+  --accent-amber-border: rgba(255, 198, 92, 0.22);
+
+  /* Accent secundários */
+  --accent-blue: #74c8fc;
+  --accent-teal: #76e3dc;
+  --accent-pink: #ff9caa;
+
+  /* Superfícies */
+  --surface-1: rgba(255, 255, 255, 0.04);
+  --surface-2: rgba(255, 255, 255, 0.07);
+  --surface-3: rgba(255, 255, 255, 0.1);
+
+  /* Borders */
+  --border: rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.18);
+
+  /* Outros */
+  --radius: 1rem;
+  --shadow-soft: 0 8px 30px rgba(0, 0, 0, 0.28);
+  --shadow-card: 0 0.48px 1.25px rgba(0, 0, 0, 0.29),
+    0 1.83px 4.76px rgba(0, 0, 0, 0.25),
+    0 8px 20.8px rgba(0, 0, 0, 0.1);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background:
+    radial-gradient(circle at top center, rgba(255, 198, 92, 0.08), transparent 20%),
+    radial-gradient(circle at bottom left, rgba(116, 200, 252, 0.05), transparent 18%),
+    var(--bg-0);
+  color: var(--text-100);
+  font-family: var(--font-sans);
+}
+
+/* Tipografia */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  letter-spacing: -0.04em;
+}
+
+/* Utilitários visuais */
+.text-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.05em;
+}
+
+.text-mono {
+  font-family: var(--font-mono);
+}
+
+.text-gradient-amber {
+  background: linear-gradient(
+    180deg,
+    #fff7e3 0%,
+    var(--accent-amber) 55%,
+    #c28a2b 100%
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.text-muted {
+  color: var(--text-400);
+}
+
+.border-subtle {
+  border: 1px solid var(--border);
+}
+
+.border-strong {
+  border: 1px solid var(--border-strong);
+}
+
+.surface-glass {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.surface-card {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-soft);
+}
+
+.surface-card-hover {
+  transition: all 0.3s ease;
+}
+
+.surface-card-hover:hover {
+  background: var(--surface-2);
+  border-color: var(--border-strong);
+  transform: translateY(-2px);
+}
+
+.accent-amber {
+  color: var(--accent-amber);
+}
+
+.bg-accent-amber-soft {
+  background: var(--accent-amber-soft);
+}
+
+.border-accent-amber {
+  border-color: var(--accent-amber-border);
+}
+
+.shadow-amber {
+  box-shadow: 0 0 40px rgba(255, 198, 92, 0.14);
+}
+
+.bg-grid {
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 56px 56px;
+}
+
+/* Botões helpers */
+.button-amber {
+  background: var(--accent-amber);
+  color: #111111;
+  box-shadow: 0 10px 30px rgba(255, 198, 92, 0.18);
+}
+
+.button-amber:hover {
+  filter: brightness(1.04);
+}
+
+.button-ghost-dark {
+  background: transparent;
+  color: var(--text-100);
+  border: 1px solid var(--border);
+}
+
+.button-ghost-dark:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--border-strong);
+}
+
+/* Animações */
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-slide-in-1 {
+  animation: fadeSlideIn 0.45s ease-out both;
+}
+
+.animate-fade-slide-in-2 {
+  animation: fadeSlideIn 0.65s ease-out both;
+}
+
+.animate-fade-slide-in-3 {
+  animation: fadeSlideIn 0.85s ease-out both;
+}
+
+.animate-fade-slide-in-4 {
+  animation: fadeSlideIn 1.05s ease-out both;
+}
