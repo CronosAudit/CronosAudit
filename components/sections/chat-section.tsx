@@ -59,12 +59,57 @@ function useAutoResizeTextarea({ minHeight, maxHeight }: AutoResizeProps) {
 
 export function ChatSection() {
   const [message, setMessage] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const { textareaRef, adjustHeight } = useAutoResizeTextarea({
     minHeight: 64,
     maxHeight: 220,
   });
 
-  const hasMessage = message.trim().length > 0;
+  const hasMessage = message.trim().length > 0 || file !== null;
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      setFile(e.target.files[0]);
+    }
+  };
+
+  const handleClear = () => {
+    setMessage("");
+    setFile(null);
+    adjustHeight(true);
+  };
+
+  const handleSubmit = async () => {
+    if (!hasMessage) return;
+    setIsLoading(true);
+
+    try {
+      const formData = new FormData();
+      if (message) formData.append("message", message);
+      if (file) formData.append("file", file);
+
+      const response = await fetch("http://localhost:5000/api/chat", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log("Sucesso:", data);
+        handleClear();
+        // Futura integração de hitórico de mensagens ficaria aqui.
+      } else {
+        console.error("Falha ao enviar ao backend");
+      }
+    } catch (error) {
+      console.error("Erro de rede:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <section
@@ -141,11 +186,18 @@ export function ChatSection() {
                 />
 
                 <div className="flex flex-col gap-3 border-t border-white/10 p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4">
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    className="hidden"
+                    onChange={handleFileChange}
+                  />
                   <div className="flex flex-wrap items-center gap-2">
                     <Button
                       type="button"
                       variant="ghost"
                       size="icon"
+                      onClick={() => fileInputRef.current?.click()}
                       className="rounded-xl text-zinc-300 hover:bg-white/10 hover:text-white"
                     >
                       <Paperclip className="size-4" />
@@ -154,10 +206,11 @@ export function ChatSection() {
                     <Button
                       type="button"
                       variant="ghost"
-                      className="rounded-xl border border-white/10 bg-white/[0.03] text-zinc-300 hover:bg-white/10 hover:text-white"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="rounded-xl border border-white/10 bg-white/[0.03] text-zinc-300 hover:bg-white/10 hover:text-white truncate max-w-[200px]"
                     >
-                      <FileUp className="mr-2 size-4" />
-                      Enviar arquivo
+                      <FileUp className="mr-2 size-4 shrink-0" />
+                      {file ? file.name : "Enviar arquivo"}
                     </Button>
                   </div>
 
@@ -165,10 +218,7 @@ export function ChatSection() {
                     <Button
                       type="button"
                       variant="ghost"
-                      onClick={() => {
-                        setMessage("");
-                        adjustHeight(true);
-                      }}
+                      onClick={handleClear}
                       className="rounded-xl text-zinc-300 hover:bg-white/10 hover:text-white"
                     >
                       Limpar
@@ -176,7 +226,8 @@ export function ChatSection() {
 
                     <Button
                       type="button"
-                      disabled={!hasMessage}
+                      onClick={handleSubmit}
+                      disabled={!hasMessage || isLoading}
                       className={cn(
                         "rounded-xl px-4 font-medium transition-all",
                         hasMessage
@@ -185,7 +236,7 @@ export function ChatSection() {
                       )}
                     >
                       <ArrowUpIcon className="mr-2 size-4" />
-                      Enviar
+                      {isLoading ? "Enviando..." : "Enviar"}
                     </Button>
                   </div>
                 </div>
