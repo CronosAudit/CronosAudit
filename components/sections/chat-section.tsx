@@ -18,7 +18,10 @@ import {
   ScrollText,
   Sparkles,
   ArrowLeft,
+  CheckCircle2,
+  AlertCircle,
 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface AutoResizeProps {
   minHeight: number;
@@ -61,6 +64,10 @@ export function ChatSection() {
   const [message, setMessage] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { textareaRef, adjustHeight } = useAutoResizeTextarea({
@@ -91,7 +98,7 @@ export function ChatSection() {
       if (message) formData.append("message", message);
       if (file) formData.append("file", file);
 
-      const response = await fetch("http://localhost:5000/api/chat", {
+      const response = await fetch("/api/chat", {
         method: "POST",
         body: formData,
       });
@@ -100,12 +107,24 @@ export function ChatSection() {
         const data = await response.json();
         console.log("Sucesso:", data);
         handleClear();
-        // Futura integração de hitórico de mensagens ficaria aqui.
+        setUploadStatus({
+          type: "success",
+          message: "Arquivo enviado com sucesso!",
+        });
+        setTimeout(() => setUploadStatus(null), 5000);
       } else {
         console.error("Falha ao enviar ao backend");
+        setUploadStatus({
+          type: "error",
+          message: "Erro ao enviar ao servidor. Tente novamente.",
+        });
       }
     } catch (error) {
       console.error("Erro de rede:", error);
+      setUploadStatus({
+        type: "error",
+        message: "Erro de conexão. Verifique sua rede.",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -166,6 +185,29 @@ export function ChatSection() {
                   proposta de evidências a serem solicitadas.”
                 </p>
               </div>
+
+              <AnimatePresence>
+                {uploadStatus && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10, height: 0 }}
+                    animate={{ opacity: 1, y: 0, height: "auto" }}
+                    exit={{ opacity: 0, y: -10, height: 0 }}
+                    className={cn(
+                      "mb-4 flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-medium",
+                      uploadStatus.type === "success"
+                        ? "border border-emerald-500/20 bg-emerald-500/10 text-emerald-400"
+                        : "border border-rose-500/20 bg-rose-500/10 text-rose-400"
+                    )}
+                  >
+                    {uploadStatus.type === "success" ? (
+                      <CheckCircle2 className="size-4 shrink-0" />
+                    ) : (
+                      <AlertCircle className="size-4 shrink-0" />
+                    )}
+                    {uploadStatus.message}
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               <div className="relative rounded-[24px] border border-white/10 bg-[#0f1012]/80 shadow-xl shadow-black/20">
                 <Textarea
