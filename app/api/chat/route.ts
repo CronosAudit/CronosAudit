@@ -1,23 +1,26 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase-admin";
+import { getSupabaseAdmin } from "@/lib/supabase-admin";
 
 export async function POST(request: NextRequest) {
   try {
+    const supabaseAdmin = getSupabaseAdmin();
+
     const formData = await request.formData();
     const message = formData.get("message") as string;
     const file = formData.get("file") as File | null;
 
-    let filePath = null;
+    let filePath: string | null = null;
 
     if (file) {
       const bytes = await file.arrayBuffer();
       const buffer = Buffer.from(bytes);
 
-      // Upload to Supabase Storage
-      const { data, error } = await supabaseAdmin.storage
+      const fileName = `${Date.now()}-${file.name}`;
+
+      const { error } = await supabaseAdmin.storage
         .from("arquivos_relatorio")
-        .upload(file.name, buffer, {
+        .upload(fileName, buffer, {
           contentType: file.type,
           upsert: true,
         });
@@ -33,7 +36,7 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      filePath = file.name;
+      filePath = fileName;
     }
 
     return NextResponse.json({
