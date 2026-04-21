@@ -1,11 +1,12 @@
 import { Header } from "@/components/sections/header"
 import { PricingSection } from "@/components/sections/pricing-section"
 import { BackgroundPaths } from "@/components/ui/background-paths"
+import { Navbar } from "@/components/ui/navbar"
 
 export default function PlanosPage() {
   return (
     <main className="flex min-h-screen flex-col bg-[#0b0b0c] text-white overflow-hidden">
-      <Header />
+      <Navbar />
       
       <div className="relative pt-20">
         {/* Background Pattern consistent with Home */}

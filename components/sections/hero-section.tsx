@@ -42,7 +42,7 @@ const transitionVariants: { container?: Variants; item: Variants } = {
 export function HeroSection() {
   return (
     <>
-      <Header />
+      <Navbar />
 
       <main className="overflow-x-hidden bg-[#0b0b0c] text-white">
         <section className="relative">

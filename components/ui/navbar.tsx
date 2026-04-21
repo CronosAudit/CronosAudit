@@ -38,10 +38,11 @@ type NavbarProps = {
 
 export const defaultMenuItems: NavItem[] = [
   { name: "Soluções", href: "/solucoes" },
-  { name: "Recursos", href: "/recursos" },
-  { name: "Governança", href: "/governanca" },
-  { name: "Contato", href: "/contato" },
-  { name: "Chat", href: "/chat" },
+  // { name: "Recursos", href: "/recursos" },
+  // { name: "Governança", href: "/governanca" },
+  // { name: "Contato", href: "/contato" },
+  // { name: "Chat", href: "/chat" },
+  { name: "Planos", href: "/planos" },
 ]
 
 export const dashboardMenuItems: NavItem[] = [
