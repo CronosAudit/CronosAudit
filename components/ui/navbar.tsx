@@ -48,7 +48,7 @@ export const defaultMenuItems: NavItem[] = [
 export const dashboardMenuItems: NavItem[] = [
   { name: "Dashboard", href: "/dashboard" },
   { name: "Chat", href: "/chat" },
-  { name: "Relatórios", href: "/relatorios" },
+  // { name: "Relatórios", href: "/relatorios" },
   { name: "Documentos Exemplo", href: "/dashboard/documentos" },
 ]
 
