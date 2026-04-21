@@ -12,6 +12,8 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { AnimatedGroup } from "@/components/ui/animated-group"
+import { cn } from "@/lib/utils"
+import { Header } from "./header"
 import { BackgroundPaths } from "@/components/ui/background-paths"
 import { Navbar } from "@/components/ui/navbar"
 import type { Variants } from "framer-motion"
@@ -36,10 +38,11 @@ const transitionVariants: { container?: Variants; item: Variants } = {
   },
 }
 
+
 export function HeroSection() {
   return (
     <>
-      <Navbar />
+      <Header />
 
       <main className="overflow-x-hidden bg-[#0b0b0c] text-white">
         <section className="relative">
@@ -302,6 +305,7 @@ export function HeroSection() {
     </>
   )
 }
+
 
 function FeaturePill({
   icon,
