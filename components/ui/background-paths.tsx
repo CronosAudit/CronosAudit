@@ -18,7 +18,7 @@ function FloatingPaths({ position }: { position: number }) {
   return (
     <div className="absolute inset-0 pointer-events-none">
       <svg className="w-full h-full" viewBox="0 0 696 316" fill="none">
-        {paths.map((path) => (
+        {paths.map((path, i) => (
           <motion.path
             key={path.id}
             d={path.d}
