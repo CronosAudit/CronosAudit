@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, type Transition } from "framer-motion";
 
 function FloatingPaths({ position }: { position: number }) {
   const paths = Array.from({ length: 36 }, (_, i) => ({
@@ -17,36 +17,39 @@ function FloatingPaths({ position }: { position: number }) {
 
   return (
     <div className="absolute inset-0 pointer-events-none">
-      <svg className="w-full h-full" viewBox="0 0 696 316" fill="none">
-        {paths.map((path, i) => (
-          <motion.path
-            key={path.id}
-            d={path.d}
-            stroke="url(#gold-gradient)"
-            strokeWidth={path.width}
-            strokeOpacity={0.08 + path.id * 0.02}
-            initial={{ pathLength: 0.3, opacity: 0.4 }}
-            animate={{
-              pathLength: 1,
-              opacity: [0.2, 0.5, 0.2],
-              pathOffset: [0, 1, 0],
-            }}
-            transition={{
-              duration: 18 + (i % 8),
-              repeat: Infinity,
-              ease: "linear",
-            }}
-          />
-        ))}
-
-        {/* Gradiente dourado */}
+      <svg className="h-full w-full" viewBox="0 0 696 316" fill="none">
         <defs>
-          <linearGradient id="gold-gradient" x1="0" y1="0" x2="1" y2="1">
+          <linearGradient id={`gold-gradient-${position}`} x1="0" y1="0" x2="1" y2="1">
             <stop offset="0%" stopColor="#f4e7b2" />
             <stop offset="50%" stopColor="#d4af37" />
             <stop offset="100%" stopColor="#b88746" />
           </linearGradient>
         </defs>
+
+        {paths.map((path, i) => {
+          const transition: Transition = {
+            duration: 18 + (i % 8),
+            repeat: Infinity,
+            ease: "linear",
+          };
+
+          return (
+            <motion.path
+              key={path.id}
+              d={path.d}
+              stroke={`url(#gold-gradient-${position})`}
+              strokeWidth={path.width}
+              strokeOpacity={0.08 + path.id * 0.02}
+              initial={{ pathLength: 0.3, opacity: 0.4 }}
+              animate={{
+                pathLength: 1,
+                opacity: [0.2, 0.5, 0.2],
+                pathOffset: [0, 1, 0],
+              }}
+              transition={transition}
+            />
+          );
+        })}
       </svg>
     </div>
   );
@@ -54,7 +57,7 @@ function FloatingPaths({ position }: { position: number }) {
 
 export function BackgroundPaths() {
   return (
-    <div className="absolute inset-0">
+    <div className="absolute inset-0 overflow-hidden">
       <FloatingPaths position={1} />
       <FloatingPaths position={-1} />
     </div>
