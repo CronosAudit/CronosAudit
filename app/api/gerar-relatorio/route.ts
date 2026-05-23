@@ -32,7 +32,7 @@ export async function POST(request: Request) {
 
     const upstreamUrl =
       process.env.CHRONOS_REPORT_API_URL ||
-      "https://https://cr6fqv-5000.csb.app/api/gerar-relatorio";
+      "https://cr6fqv-5000.csb.app/api/gerar-relatorio";
 
     const payload = {
       cnpj,
