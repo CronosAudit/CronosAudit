@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import * as React from "react";
@@ -21,6 +22,7 @@ import {
   TrendingUp,
   AlertTriangle,
   MoreHorizontal,
+  Folder,
 } from "lucide-react";
 
 import { Navbar, dashboardMenuItems } from "@/components/ui/navbar";
@@ -413,8 +415,8 @@ export default function DashboardPage() {
                       onClick={() => router.push("/dashboard/documentos")}
                       className="h-11 rounded-2xl border border-white/10 px-5 text-sm text-white hover:bg-white/10 hover:text-white"
                     >
-                      <FolderKanban className="mr-2 size-4" />
-                      Arquivos de Exemplo
+                      <Folder className="mr-2 size-4" />
+                      Documentos de Exemplo
                     </Button>
                   </div>
                 </div>
@@ -511,110 +513,125 @@ export default function DashboardPage() {
 
            
 
-            <section className="rounded-[28px] border border-white/10 bg-[#111214]/85 p-5 shadow-2xl shadow-black/30 ring-1 ring-white/10 backdrop-blur-sm sm:p-6">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <p className="text-sm font-medium text-[#f4e7b2]">
-                    Relatórios criados
-                  </p>
-                  <h2 className="mt-2 text-2xl font-semibold text-white">
-                    Processamento e resultados
-                  </h2>
+            <section className="rounded-[28px] border border-white/10 bg-[#111214]/85 p-4 shadow-2xl shadow-black/30 ring-1 ring-white/10 backdrop-blur-sm sm:p-6">
+  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+    <div>
+      <p className="text-sm font-medium text-[#f4e7b2]">Relatórios criados</p>
+      <h2 className="mt-2 text-xl font-semibold text-white sm:text-2xl">
+        Processamento e resultados
+      </h2>
+    </div>
+
+    <Button
+      type="button"
+      variant="ghost"
+      disabled={isLoading || !filteredReports?.length}
+      className="h-11 w-full rounded-2xl border border-white/10 px-4 text-sm text-white hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+    >
+      <BarChart3 className="mr-2 size-4" />
+      Exportar visão
+    </Button>
+  </div>
+
+  <div className="mt-6 overflow-hidden rounded-3xl border border-white/10">
+    <div className="hidden grid-cols-[1.5fr_1fr_0.9fr_0.9fr_48px] bg-white/[0.04] px-5 py-4 text-sm font-medium text-zinc-300 md:grid">
+      <div>Relatório</div>
+      <div>Origem</div>
+      <div>Status</div>
+      <div>Achados</div>
+      <div />
+    </div>
+
+    <div className="divide-y divide-white/10">
+      {isLoading ? (
+        <div className="px-5 py-8">
+          <LoadingState text="Carregando relatórios..." />
+        </div>
+      ) : Array.isArray(filteredReports) && filteredReports.length > 0 ? (
+        filteredReports.map((report) => {
+          const progress = Math.min(Math.max(Number(report.progress || 0), 0), 100)
+          const status = report.status || 'Processando'
+          const isCompleted = status === 'Concluído'
+          const isFailed = status === 'Falhou'
+
+          return (
+            <article
+              key={report.id}
+              className="grid gap-4 bg-black/10 px-4 py-5 transition hover:bg-white/[0.03] sm:px-5 md:grid-cols-[1.5fr_1fr_0.9fr_0.9fr_48px] md:items-center"
+            >
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs uppercase tracking-[0.18em] text-zinc-500">
+                    {String(report.id || '').slice(0, 8) || 'sem-id'}
+                  </span>
+                  <ReportStatusBadge label={status} />
                 </div>
 
-                <Button
-                  variant="ghost"
-                  className="h-11 rounded-2xl border border-white/10 px-4 text-sm text-white hover:bg-white/10 hover:text-white"
-                >
-                  <BarChart3 className="mr-2 size-4" />
-                  Exportar visão
-                </Button>
-              </div>
+                <p className="mt-2 truncate text-sm font-semibold text-white sm:text-base">
+                  {report.name || 'Relatório sem nome'}
+                </p>
 
-              <div className="mt-6 overflow-hidden rounded-3xl border border-white/10">
-                <div className="hidden grid-cols-[1.5fr_1fr_0.9fr_0.9fr_48px] bg-white/[0.04] px-5 py-4 text-sm font-medium text-zinc-300 md:grid">
-                  <div>Relatório</div>
-                  <div>Origem</div>
-                  <div>Status</div>
-                  <div>Achados</div>
-                  <div />
-                </div>
+                <p className="mt-1 text-sm text-zinc-500">
+                  Criado em {report.createdAt || 'data não informada'}
+                </p>
 
-                <div className="divide-y divide-white/10">
-                  {isLoading ? (
-                    <div className="px-5 py-6">
-                      <LoadingState text="Carregando relatórios..." />
-                    </div>
-                  ) : filteredReports.length > 0 ? (
-                    filteredReports.map((report) => (
-                      <div
-                        key={report.id}
-                        className="grid gap-4 bg-black/10 px-5 py-5 md:grid-cols-[1.5fr_1fr_0.9fr_0.9fr_48px] md:items-center"
-                      >
-                        <div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-xs uppercase tracking-[0.18em] text-zinc-500">
-                              {report.id.slice(0, 8)}
-                            </span>
-                            <ReportStatusBadge label={report.status} />
-                          </div>
-                          <p className="mt-2 text-sm font-semibold text-white sm:text-base">
-                            {report.name}
-                          </p>
-                          <p className="mt-1 text-sm text-zinc-500">
-                            Criado em {report.createdAt}
-                          </p>
+                <div className="mt-3 max-w-sm space-y-2">
+                  <div className="flex items-center justify-between text-xs text-zinc-400">
+                    <span>Progresso</span>
+                    <span>{progress}%</span>
+                  </div>
 
-                          <div className="mt-3 max-w-sm space-y-2">
-                            <div className="flex items-center justify-between text-xs text-zinc-400">
-                              <span>Progresso</span>
-                              <span>{report.progress}%</span>
-                            </div>
-                            <div className="h-2 rounded-full bg-white/10">
-                              <div
-                                className="h-2 rounded-full bg-gradient-to-r from-[#f8e7a1] via-[#d4af37] to-[#b88746]"
-                                style={{ width: `${report.progress}%` }}
-                              />
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="text-sm text-zinc-300">
-                          {report.source}
-                        </div>
-
-                        <div>
-                          <p className="text-sm text-white">{report.status}</p>
-                          <p className="mt-1 text-xs text-zinc-500">
-                            {report.status === "Concluído"
-                              ? "Disponível para revisão"
-                              : report.status === "Falhou"
-                                ? "Requer nova tentativa"
-                                : "Aguardando conclusão"}
-                          </p>
-                        </div>
-
-                        <div className="text-sm font-medium text-white">
-                          {report.findings} apontamentos
-                        </div>
-
-                        <button
-                          type="button"
-                          className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 text-zinc-300 transition hover:bg-white/10 hover:text-white"
-                          aria-label="Mais ações"
-                        >
-                          <MoreHorizontal className="size-4" />
-                        </button>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="px-5 py-6">
-                      <EmptyState text="Nenhum relatório encontrado para este usuário." />
-                    </div>
-                  )}
+                  <div className="h-2 overflow-hidden rounded-full bg-white/10">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-[#f8e7a1] via-[#d4af37] to-[#b88746] transition-all duration-500"
+                      style={{ width: `${progress}%` }}
+                    />
+                  </div>
                 </div>
               </div>
-            </section>
+
+              <div className="text-sm text-zinc-300 md:truncate">
+                <span className="mb-1 block text-xs text-zinc-500 md:hidden">Origem</span>
+                {report.source || 'Não informado'}
+              </div>
+
+              <div>
+                <span className="mb-1 block text-xs text-zinc-500 md:hidden">Status</span>
+                <p className="text-sm text-white">{status}</p>
+                <p className="mt-1 text-xs text-zinc-500">
+                  {isCompleted
+                    ? 'Disponível para revisão'
+                    : isFailed
+                      ? 'Requer nova tentativa'
+                      : 'Aguardando conclusão'}
+                </p>
+              </div>
+
+              <div className="text-sm font-medium text-white">
+                <span className="mb-1 block text-xs font-normal text-zinc-500 md:hidden">
+                  Achados
+                </span>
+                {Number(report.findings || 0)} apontamentos
+              </div>
+
+              <button
+                type="button"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 text-zinc-300 transition hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-[#d4af37]/60"
+                aria-label={`Mais ações do relatório ${report.name || ''}`}
+              >
+                <MoreHorizontal className="size-4" />
+              </button>
+            </article>
+          )
+        })
+      ) : (
+        <div className="px-5 py-8">
+          <EmptyState text="Nenhum relatório encontrado para este usuário." />
+        </div>
+      )}
+    </div>
+  </div>
+</section>
           </div>
         </section>
       </main>

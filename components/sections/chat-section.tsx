@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+} from "react";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
@@ -12,8 +19,6 @@ import {
 } from "./chat/utils";
 import { useAutoResizeTextarea } from "./chat/use-auto-resize-textarea";
 import { ChatLandingView } from "./chat/chat-landing-view";
-import { ChatConversationView } from "./chat/chat-conversation-view";
-
 import type {
   ChatConversation,
   ChatMessage,
@@ -23,8 +28,151 @@ import type {
   ReportData,
   TaxRegime,
 } from "./chat/types";
+import { ChatConversationView } from "./chat/chat-conversation-view";
+
+type SafeResponseData = {
+  error?: string | null;
+  message?: string | null;
+  details?: {
+    raw?: string;
+    message?: string;
+  } | null;
+  [key: string]: unknown;
+};
+
+async function readResponseSafely(
+  response: Response,
+): Promise<SafeResponseData> {
+  const contentType = response.headers.get("content-type") || "";
+
+  if (contentType.includes("application/json")) {
+    try {
+      return await response.json();
+    } catch {
+      return {
+        error: response.ok ? null : "Resposta JSON inválida.",
+        details: {
+          message: "O servidor respondeu como JSON, mas o conteúdo é inválido.",
+        },
+      };
+    }
+  }
+
+  const raw = await response.text().catch(() => "");
+
+  const isHtml =
+    raw.trim().startsWith("<!DOCTYPE html") || raw.includes("<html");
+  const isBadGateway =
+    response.status === 502 ||
+    raw.includes("502 Bad Gateway") ||
+    raw.includes("failed to connect to server of VM");
+
+  return {
+    error: response.ok ? null : "Erro ao gerar relatório.",
+    details: {
+      raw,
+      message: isBadGateway
+        ? "O serviço de geração do relatório retornou 502 Bad Gateway. Verifique se o backend/serviço externo está online e acessível."
+        : isHtml
+          ? `O servidor retornou uma página HTML em vez de JSON. Status HTTP: ${response.status}.`
+          : raw.slice(0, 500) || `Falha HTTP ${response.status}.`,
+    },
+  };
+}
+
+function getErrorMessageFromResponse(
+  responseData: SafeResponseData | null,
+  fallback: string,
+) {
+  const details = responseData?.details as
+    | { raw?: string; message?: string }
+    | null
+    | undefined;
+
+  return (
+    details?.message || responseData?.message || responseData?.error || fallback
+  );
+}
+
+function getReportHashFromResponse(responseData: SafeResponseData | null) {
+  return (
+    responseData?.hash ||
+    responseData?.report_hash ||
+    responseData?.reportHash ||
+    responseData?.cid_hash ||
+    responseData?.id ||
+    generateConversationHash()
+  );
+}
+
+function getReportStatusFromResponse(responseData: SafeResponseData | null) {
+  return (
+    responseData?.status ||
+    responseData?.report_status ||
+    responseData?.reportStatus ||
+    "completed"
+  );
+}
+
+function getReportMarkdownFromResponse(responseData: SafeResponseData | null) {
+  return (
+    responseData?.markdown ||
+    responseData?.markdown_content ||
+    responseData?.markdownContent ||
+    responseData?.relatorio_markdown ||
+    responseData?.content ||
+    null
+  );
+}
+
+function getReportLinkFromResponse(responseData: SafeResponseData | null) {
+  return (
+    responseData?.link ||
+    responseData?.result_link ||
+    responseData?.resultLink ||
+    responseData?.url ||
+    responseData?.url_pdf ||
+    responseData?.public_url ||
+    responseData?.publicUrl ||
+    responseData?.download_url ||
+    responseData?.downloadUrl ||
+    responseData?.file_url ||
+    responseData?.fileUrl ||
+    null
+  );
+}
 
 export function ChatSection() {
+  const SUPABASE_PROJECT_URL = "https://wtclrcxcsnsoqhwsnkss.supabase.co";
+  const REPORTS_BUCKET = "relatorios";
+
+  function buildPublicReportUrl(storagePath: string) {
+    return `${SUPABASE_PROJECT_URL}/storage/v1/object/public/${REPORTS_BUCKET}/${encodeURIComponent(
+      storagePath,
+    )}`;
+  }
+
+  function getReportStoragePathFromResponse(
+    responseData: SafeResponseData | null,
+  ) {
+    return (
+      responseData?.storage_path ||
+      responseData?.storagePath ||
+      responseData?.file_path ||
+      responseData?.filePath ||
+      null
+    );
+  }
+
+  function getReportStorageBucketFromResponse(
+    responseData: SafeResponseData | null,
+  ) {
+    return (
+      responseData?.storage_bucket ||
+      responseData?.storageBucket ||
+      REPORTS_BUCKET
+    );
+  }
   const [message, setMessage] = useState("");
   const [file, setFile] = useState<File | null>(null);
 
@@ -45,7 +193,9 @@ export function ChatSection() {
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [conversationFiles, setConversationFiles] = useState<ConversationFile[]>([]);
+  const [conversationFiles, setConversationFiles] = useState<
+    ConversationFile[]
+  >([]);
   const [latestReport, setLatestReport] = useState<ReportData | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -53,7 +203,9 @@ export function ChatSection() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const [companyQuery, setCompanyQuery] = useState("");
-  const [companySuggestions, setCompanySuggestions] = useState<CompanySuggestion[]>([]);
+  const [companySuggestions, setCompanySuggestions] = useState<
+    CompanySuggestion[]
+  >([]);
   const [isSearchingCompanies, setIsSearchingCompanies] = useState(false);
   const [showCompanySuggestions, setShowCompanySuggestions] = useState(false);
 
@@ -63,7 +215,9 @@ export function ChatSection() {
   });
 
   const activeConversation = useMemo(() => {
-    return conversations.find((item) => item.id === activeConversationId) ?? null;
+    return (
+      conversations.find((item) => item.id === activeConversationId) ?? null
+    );
   }, [conversations, activeConversationId]);
 
   const hasStartedChat = messages.length > 0;
@@ -96,65 +250,72 @@ export function ChatSection() {
     return mapped;
   }, []);
 
-  const loadConversationDetails = useCallback(async (conversationId: string) => {
-    const [messagesResult, filesResult, reportsResult] = await Promise.all([
-      supabase
-        .from("audit_conversation_messages")
-        .select("id, sender_type, content, metadata, created_at")
-        .eq("conversation_id", conversationId)
-        .order("created_at", { ascending: true }),
-      supabase
-        .from("conversation_files")
-        .select("id, original_file_name, storage_path, mime_type, created_at")
-        .eq("conversation_id", conversationId)
-        .order("created_at", { ascending: true }),
-      supabase
-        .from("audit_reports")
-        .select("id, report_hash, status, markdown_content, result_link, generated_at")
-        .eq("conversation_id", conversationId)
-        .order("created_at", { ascending: false })
-        .limit(1),
-    ]);
+  const loadConversationDetails = useCallback(
+    async (conversationId: string) => {
+      const [messagesResult, filesResult, reportsResult] = await Promise.all([
+        supabase
+          .from("audit_conversation_messages")
+          .select("id, sender_type, content, metadata, created_at")
+          .eq("conversation_id", conversationId)
+          .order("created_at", { ascending: true }),
+        supabase
+          .from("conversation_files")
+          .select("id, original_file_name, storage_path, mime_type, created_at")
+          .eq("conversation_id", conversationId)
+          .order("created_at", { ascending: true }),
+        supabase
+          .from("audit_reports")
+          .select(
+            "id, report_hash, status, markdown_content, result_link, storage_bucket, storage_path, generated_at",
+          )
+          .eq("conversation_id", conversationId)
+          .order("created_at", { ascending: false })
+          .limit(1),
+      ]);
 
-    if (messagesResult.error) throw messagesResult.error;
-    if (filesResult.error) throw filesResult.error;
-    if (reportsResult.error) throw reportsResult.error;
+      if (messagesResult.error) throw messagesResult.error;
+      if (filesResult.error) throw filesResult.error;
+      if (reportsResult.error) throw reportsResult.error;
 
-    const mappedMessages: ChatMessage[] =
-      messagesResult.data?.map((item) => ({
-        id: item.id,
-        role: item.sender_type === "user" ? "user" : "assistant",
-        content: item.content || "",
-        createdAt: item.created_at,
-        fileName: item.metadata?.fileName ?? null,
-        reportLink: item.metadata?.reportLink ?? null,
-        reportStatus: item.metadata?.reportStatus ?? null,
-      })) ?? [];
+      const mappedMessages: ChatMessage[] =
+        messagesResult.data?.map((item) => ({
+          id: item.id,
+          role: item.sender_type === "user" ? "user" : "assistant",
+          content: item.content || "",
+          createdAt: item.created_at,
+          fileName: item.metadata?.fileName ?? null,
+          reportLink: item.metadata?.reportLink ?? null,
+          reportStatus: item.metadata?.reportStatus ?? null,
+        })) ?? [];
 
-    const mappedFiles: ConversationFile[] =
-      filesResult.data?.map((item) => ({
-        id: item.id,
-        originalFileName: item.original_file_name,
-        storagePath: item.storage_path,
-        mimeType: item.mime_type,
-        createdAt: item.created_at,
-      })) ?? [];
+      const mappedFiles: ConversationFile[] =
+        filesResult.data?.map((item) => ({
+          id: item.id,
+          originalFileName: item.original_file_name,
+          storagePath: item.storage_path,
+          mimeType: item.mime_type,
+          createdAt: item.created_at,
+        })) ?? [];
 
-    const report = reportsResult.data?.[0]
-      ? {
-          id: reportsResult.data[0].id,
-          reportHash: reportsResult.data[0].report_hash,
-          status: reportsResult.data[0].status,
-          markdownContent: reportsResult.data[0].markdown_content,
-          resultLink: reportsResult.data[0].result_link,
-          generatedAt: reportsResult.data[0].generated_at,
-        }
-      : null;
+      const report = reportsResult.data?.[0]
+        ? {
+            id: reportsResult.data[0].id,
+            reportHash: reportsResult.data[0].report_hash,
+            status: reportsResult.data[0].status,
+            markdownContent: reportsResult.data[0].markdown_content,
+            resultLink: reportsResult.data[0].result_link,
+            storageBucket: reportsResult.data[0].storage_bucket,
+            storagePath: reportsResult.data[0].storage_path,
+            generatedAt: reportsResult.data[0].generated_at,
+          }
+        : null;
 
-    setMessages(mappedMessages);
-    setConversationFiles(mappedFiles);
-    setLatestReport(report);
-  }, []);
+      setMessages(mappedMessages);
+      setConversationFiles(mappedFiles);
+      setLatestReport(report);
+    },
+    [],
+  );
 
   const handleClear = useCallback(() => {
     setMessage("");
@@ -174,35 +335,41 @@ export function ChatSection() {
     setErrorMessage("");
   }, []);
 
-  async function insertAssistantMessage(
-    conversationId: string,
-    content: string,
-    metadata?: Record<string, unknown>,
-  ) {
-    await supabase.from("audit_conversation_messages").insert({
-      conversation_id: conversationId,
-      sender_type: "agent",
-      message_type: "text",
-      content,
-      metadata: metadata ?? {},
-      created_by: userId || null,
-    });
-  }
+  const insertAssistantMessage = useCallback(
+    async (
+      conversationId: string,
+      content: string,
+      metadata?: Record<string, unknown>,
+    ) => {
+      await supabase.from("audit_conversation_messages").insert({
+        conversation_id: conversationId,
+        sender_type: "agent",
+        message_type: "text",
+        content,
+        metadata: metadata ?? {},
+        created_by: userId || null,
+      });
+    },
+    [userId],
+  );
 
-  async function insertUserMessage(
-    conversationId: string,
-    content: string,
-    metadata?: Record<string, unknown>,
-  ) {
-    await supabase.from("audit_conversation_messages").insert({
-      conversation_id: conversationId,
-      sender_type: "user",
-      message_type: "text",
-      content,
-      metadata: metadata ?? {},
-      created_by: userId,
-    });
-  }
+  const insertUserMessage = useCallback(
+    async (
+      conversationId: string,
+      content: string,
+      metadata?: Record<string, unknown>,
+    ) => {
+      await supabase.from("audit_conversation_messages").insert({
+        conversation_id: conversationId,
+        sender_type: "user",
+        message_type: "text",
+        content,
+        metadata: metadata ?? {},
+        created_by: userId,
+      });
+    },
+    [userId],
+  );
 
   const createConversation = useCallback(
     async (options?: { initialTitle?: string; silent?: boolean }) => {
@@ -223,7 +390,9 @@ export function ChatSection() {
             status: "active",
             updated_at: now,
           })
-          .select("id, title, updated_at, conversation_hash, audit_type, status")
+          .select(
+            "id, title, updated_at, conversation_hash, audit_type, status",
+          )
           .single();
 
         if (error) throw error;
@@ -259,7 +428,7 @@ export function ChatSection() {
         return null;
       }
     },
-    [userId, loadConversationDetails],
+    [userId, insertAssistantMessage, loadConversationDetails],
   );
 
   const startDraftConversation = useCallback(() => {
@@ -282,7 +451,9 @@ export function ChatSection() {
         if (authError) throw authError;
 
         if (!user) {
-          setErrorMessage("Faça login para acessar suas conversas de auditoria.");
+          setErrorMessage(
+            "Faça login para acessar suas conversas de auditoria.",
+          );
           return;
         }
 
@@ -345,20 +516,25 @@ export function ChatSection() {
       try {
         setIsSearchingCompanies(true);
 
-        const response = await fetch(`/api/cnpj/search?q=${encodeURIComponent(query)}`, {
-          method: "GET",
-          signal: controller.signal,
-          cache: "no-store",
-        });
+        const response = await fetch(
+          `/api/cnpj/search?q=${encodeURIComponent(query)}`,
+          {
+            method: "GET",
+            signal: controller.signal,
+            cache: "no-store",
+          },
+        );
 
-        const data = await response.json().catch(() => ({ items: [] }));
+        const data = await readResponseSafely(response);
 
         if (!response.ok) {
-          throw new Error(data?.error || "Falha ao buscar empresas.");
+          throw new Error(
+            getErrorMessageFromResponse(data, "Falha ao buscar empresas."),
+          );
         }
 
         const items = Array.isArray(data?.items) ? data.items : [];
-        setCompanySuggestions(items);
+        setCompanySuggestions(items as CompanySuggestion[]);
         setShowCompanySuggestions(items.length > 0);
       } catch (error) {
         if ((error as Error).name !== "AbortError") {
@@ -460,26 +636,30 @@ export function ChatSection() {
         const safeFileName = sanitizeFileName(selectedFile.name);
         const storagePath = `${userId}/${conversation.conversationHash}/${Date.now()}-${safeFileName}`;
 
-        const uploadResult = await supabase.storage.from("evidences").upload(storagePath, selectedFile, {
-          cacheControl: "3600",
-          upsert: false,
-        });
+        const uploadResult = await supabase.storage
+          .from("evidences")
+          .upload(storagePath, selectedFile, {
+            cacheControl: "3600",
+            upsert: false,
+          });
 
         if (uploadResult.error) throw uploadResult.error;
 
         uploadedFileName = selectedFile.name;
         uploadedStoragePath = storagePath;
 
-        const { error: fileInsertError } = await supabase.from("conversation_files").insert({
-          conversation_id: conversation.id,
-          uploaded_by: userId,
-          original_file_name: selectedFile.name,
-          storage_bucket: "evidences",
-          storage_path: storagePath,
-          mime_type: selectedFile.type || null,
-          file_size_bytes: selectedFile.size,
-          upload_status: "uploaded",
-        });
+        const { error: fileInsertError } = await supabase
+          .from("conversation_files")
+          .insert({
+            conversation_id: conversation.id,
+            uploaded_by: userId,
+            original_file_name: selectedFile.name,
+            storage_bucket: "evidences",
+            storage_path: storagePath,
+            mime_type: selectedFile.type || null,
+            file_size_bytes: selectedFile.size,
+            upload_status: "uploaded",
+          });
 
         if (fileInsertError) throw fileInsertError;
 
@@ -494,14 +674,16 @@ export function ChatSection() {
           }),
         });
 
-        const uploadDocumentData = await uploadDocumentResponse.json().catch(() => null);
+        const uploadDocumentData = await readResponseSafely(
+          uploadDocumentResponse,
+        );
 
         if (!uploadDocumentResponse.ok) {
           throw new Error(
-            uploadDocumentData?.details?.raw ||
-              uploadDocumentData?.details?.message ||
-              uploadDocumentData?.error ||
+            getErrorMessageFromResponse(
+              uploadDocumentData,
               "Falha ao enviar documento para processamento externo.",
+            ),
           );
         }
 
@@ -524,7 +706,10 @@ export function ChatSection() {
         .update({
           title:
             conversation.title === "Nova conversa"
-              ? (trimmedMessage || uploadedFileName || "Nova conversa").slice(0, 60)
+              ? (trimmedMessage || uploadedFileName || "Nova conversa").slice(
+                  0,
+                  60,
+                )
               : conversation.title,
           updated_at: now,
         })
@@ -532,33 +717,52 @@ export function ChatSection() {
 
       if (updateConversationError) throw updateConversationError;
 
-      let assistantText = buildFallbackAssistantReply(trimmedMessage, uploadedFileName);
+      let assistantText = buildFallbackAssistantReply(
+        trimmedMessage,
+        uploadedFileName,
+      );
 
-      if (trimmedMessage || selectedFile) {
+      if ((trimmedMessage || selectedFile) && analysisEndpoint) {
         try {
           const formData = new FormData();
 
           if (trimmedMessage) formData.append("message", trimmedMessage);
           if (selectedFile) formData.append("file", selectedFile);
-          if (conversation.id) formData.append("conversation_id", conversation.id);
-          if (conversation.conversationHash) formData.append("conversation_hash", conversation.conversationHash);
-          if (uploadedStoragePath) formData.append("storage_path", uploadedStoragePath);
+          if (conversation.id) {
+            formData.append("conversation_id", conversation.id);
+          }
+          if (conversation.conversationHash) {
+            formData.append("conversation_hash", conversation.conversationHash);
+          }
+          if (uploadedStoragePath) {
+            formData.append("storage_path", uploadedStoragePath);
+          }
           if (normalizedCnpj) formData.append("cnpj", normalizedCnpj);
-          if (regimeTributario) formData.append("regime_tributario", regimeTributario);
+          if (regimeTributario) {
+            formData.append("regime_tributario", regimeTributario);
+          }
           if (anoFiscal) formData.append("ano_fiscal", anoFiscal);
           if (docType) formData.append("doc_type", docType);
 
-          const response = await fetch(analysisEndpoint!, {
+          const response = await fetch(analysisEndpoint, {
             method: "POST",
             body: formData,
           });
 
+          const data = await readResponseSafely(response);
+
           if (response.ok) {
-            const data = await response.json().catch(() => null);
-            assistantText = data?.reply || data?.message || data?.response || assistantText;
+            assistantText =
+              (data?.reply as string) ||
+              (data?.message as string) ||
+              (data?.response as string) ||
+              assistantText;
           }
         } catch {
-          assistantText = buildFallbackAssistantReply(trimmedMessage, uploadedFileName);
+          assistantText = buildFallbackAssistantReply(
+            trimmedMessage,
+            uploadedFileName,
+          );
         }
       }
 
@@ -598,12 +802,21 @@ export function ChatSection() {
     }
 
     if (!regimeTributario) {
-      setErrorMessage("Informe o regime tributário antes de gerar o relatório.");
+      setErrorMessage(
+        "Informe o regime tributário antes de gerar o relatório.",
+      );
       return;
     }
 
     if (!anoFiscal.trim()) {
       setErrorMessage("Informe o ano fiscal antes de gerar o relatório.");
+      return;
+    }
+
+    if (conversationFiles.length === 0) {
+      setErrorMessage(
+        "Envie ao menos um documento antes de gerar o relatório.",
+      );
       return;
     }
 
@@ -633,33 +846,39 @@ export function ChatSection() {
         body: JSON.stringify(payload),
       });
 
-      const responseData = await response.json().catch(() => null);
+      const responseData = await readResponseSafely(response);
 
       if (!response.ok) {
         throw new Error(
-          responseData?.details?.raw ||
-            responseData?.details?.message ||
-            responseData?.error ||
+          getErrorMessageFromResponse(
+            responseData,
             "Falha ao gerar relatório.",
+          ),
         );
       }
 
-      const reportHash = responseData?.hash || generateConversationHash();
-      const reportStatus = responseData?.status || "completed";
-      const reportMarkdown = responseData?.markdown || null;
-      const reportLink = responseData?.link || null;
+      const reportHash = String(getReportHashFromResponse(responseData));
+      const reportStatus = String(getReportStatusFromResponse(responseData));
+      const reportMarkdown = getReportMarkdownFromResponse(responseData);
 
-      const { error: reportInsertError } = await supabase.from("audit_reports").insert({
-        conversation_id: activeConversation.id,
-        requested_by: userId,
-        generator_endpoint: reportEndpoint,
-        report_hash: reportHash,
-        status: reportStatus,
-        markdown_content: reportMarkdown,
-        result_link: reportLink,
-        response_payload: responseData,
-        generated_at: new Date().toISOString(),
-      });
+      const reportLink = String(getReportLinkFromResponse(responseData) || "");
+
+      console.log("RESPONSE GERAR RELATORIO:", responseData);
+      console.log("REPORT LINK EXTRAIDO:", reportLink);
+
+      const { error: reportInsertError } = await supabase
+        .from("audit_reports")
+        .insert({
+          conversation_id: activeConversation.id,
+          requested_by: userId,
+          generator_endpoint: reportEndpoint,
+          report_hash: reportHash,
+          status: reportStatus,
+          markdown_content: reportMarkdown,
+          result_link: reportLink || null,
+          response_payload: responseData,
+          generated_at: new Date().toISOString(),
+        });
 
       if (reportInsertError) throw reportInsertError;
 
@@ -667,7 +886,7 @@ export function ChatSection() {
         activeConversation.id,
         reportLink
           ? `Relatório gerado com sucesso. O hash desta execução é ${reportHash} e o arquivo final já está disponível para visualização e download.`
-          : `A solicitação de relatório foi concluída com status "${reportStatus}".`,
+          : `A solicitação de relatório foi concluída com status "${reportStatus}", mas o backend não retornou um link público do PDF. Verifique se o campo "link", "result_link", "publicUrl" ou "download_url" está sendo retornado pela rota de geração.`,
         {
           reportHash,
           reportLink,

@@ -1,12 +1,22 @@
 "use client"
 
+import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Eye, EyeOff, ShieldCheck, Lock, Mail } from "lucide-react"
-import * as React from "react"
+import {
+  AlertCircle,
+  ArrowRight,
+  CheckCircle2,
+  Eye,
+  EyeOff,
+  Loader2,
+  Lock,
+  Mail,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react"
 
 import { Navbar } from "@/components/ui/navbar"
-import { BackgroundPaths } from "@/components/ui/background-paths"
 import { Button } from "@/components/ui/button"
 import { signInWithEmail, signInWithGoogle } from "@/lib/auth"
 
@@ -22,12 +32,25 @@ export default function LoginPage() {
   const [error, setError] = React.useState("")
   const [success, setSuccess] = React.useState("")
 
+  React.useEffect(() => {
+    if (typeof window === "undefined") return
+
+    const savedEmail = localStorage.getItem("chronos_remember_email")
+
+    if (savedEmail) {
+      setEmail(savedEmail)
+      setRememberMe(true)
+    }
+  }, [])
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setError("")
     setSuccess("")
 
-    if (!email.trim() || !password.trim()) {
+    const cleanEmail = email.trim()
+
+    if (!cleanEmail || !password.trim()) {
       setError("Preencha seu e-mail e senha.")
       return
     }
@@ -35,36 +58,41 @@ export default function LoginPage() {
     try {
       setIsLoading(true)
 
-      await signInWithEmail(email.trim(), password)
+      await signInWithEmail(cleanEmail, password)
 
-      if (rememberMe && typeof window !== "undefined") {
-        localStorage.setItem("chronos_remember_email", email.trim())
-      } else if (typeof window !== "undefined") {
-        localStorage.removeItem("chronos_remember_email")
+      if (typeof window !== "undefined") {
+        if (rememberMe) {
+          localStorage.setItem("chronos_remember_email", cleanEmail)
+        } else {
+          localStorage.removeItem("chronos_remember_email")
+        }
       }
 
-      setSuccess("Login realizado com sucesso.")
+      setSuccess("Login realizado com sucesso. Redirecionando...")
       router.push("/dashboard")
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Não foi possível entrar."
-
+      const message = err instanceof Error ? err.message : "Não foi possível entrar."
       setError(traduzirErroAuth(message))
     } finally {
       setIsLoading(false)
     }
   }
 
+  async function handleGoogleLogin() {
+    setError("")
+    setSuccess("")
 
-  React.useEffect(() => {
-    if (typeof window === "undefined") return
-
-    const savedEmail = localStorage.getItem("chronos_remember_email")
-    if (savedEmail) {
-      setEmail(savedEmail)
-      setRememberMe(true)
+    try {
+      setIsGoogleLoading(true)
+      await signInWithGoogle()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Não foi possível entrar com Google."
+      setError(traduzirErroAuth(message))
+      setIsGoogleLoading(false)
     }
-  }, [])
+  }
+
+  const disabled = isLoading || isGoogleLoading
 
   return (
     <>
@@ -72,40 +100,36 @@ export default function LoginPage() {
 
       <main className="min-h-screen overflow-x-hidden bg-[#0b0b0c] text-white">
         <section className="relative min-h-screen">
+          <div className="absolute inset-0 -z-10 bg-[#0b0b0c]" />
 
-          <div className="absolute inset-0 -z-10 bg-[#0b0b0c]/88" />
-
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0 -z-10"
-          >
-            <div className="absolute left-[-8rem] top-[-10rem] h-[28rem] w-[28rem] rounded-full bg-[radial-gradient(circle,rgba(212,175,55,0.16)_0%,rgba(212,175,55,0.05)_35%,transparent_72%)] blur-3xl md:h-[34rem] md:w-[34rem]" />
-            <div className="absolute right-[-10rem] top-[10rem] h-[24rem] w-[24rem] rounded-full bg-[radial-gradient(circle,rgba(120,119,108,0.12)_0%,rgba(120,119,108,0.05)_40%,transparent_75%)] blur-3xl md:h-[30rem] md:w-[30rem]" />
-            <div className="absolute bottom-[-12rem] left-1/2 h-[22rem] w-[22rem] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(166,124,82,0.12)_0%,rgba(166,124,82,0.03)_45%,transparent_75%)] blur-3xl md:h-[28rem] md:w-[28rem]" />
-            <div className="absolute inset-0 bg-[radial-gradient(120%_120%_at_50%_100%,transparent_0%,#0b0b0c_62%)]" />
+          <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+            <div className="absolute left-[-9rem] top-[-9rem] h-[24rem] w-[24rem] rounded-full bg-[radial-gradient(circle,rgba(212,175,55,0.18)_0%,rgba(212,175,55,0.06)_38%,transparent_72%)] blur-3xl sm:h-[34rem] sm:w-[34rem]" />
+            <div className="absolute right-[-12rem] top-[15rem] h-[22rem] w-[22rem] rounded-full bg-[radial-gradient(circle,rgba(184,135,70,0.16)_0%,rgba(184,135,70,0.05)_42%,transparent_74%)] blur-3xl sm:h-[32rem] sm:w-[32rem]" />
+            <div className="absolute bottom-[-14rem] left-1/2 h-[26rem] w-[26rem] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(244,231,178,0.08)_0%,rgba(244,231,178,0.03)_45%,transparent_75%)] blur-3xl" />
+            <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(11,11,12,0.2),rgba(11,11,12,0.92))]" />
+            <div className="absolute inset-0 bg-[radial-gradient(120%_90%_at_50%_100%,transparent_0%,#0b0b0c_70%)]" />
           </div>
 
-          <div className="mx-auto grid min-h-screen max-w-7xl items-center gap-10 px-4 pb-12 pt-28 sm:px-6 md:pt-32 lg:grid-cols-[1.05fr_0.95fr] lg:gap-14 lg:pt-36">
-            <div className="max-w-2xl">
-              <div className="inline-flex items-center gap-2 rounded-full border border-[#d4af37]/20 bg-white/5 px-4 py-2 text-sm text-[#f4e7b2] backdrop-blur-md">
+          <div className="mx-auto grid min-h-screen w-full max-w-7xl items-center gap-8 px-4 pb-10 pt-24 sm:px-6 sm:pt-28 lg:grid-cols-[1.05fr_0.95fr] lg:gap-14 lg:pb-14 lg:pt-32">
+            <div className="order-2 mx-auto w-full max-w-2xl text-center lg:order-1 lg:mx-0 lg:text-left">
+              <div className="inline-flex items-center gap-2 rounded-full border border-[#d4af37]/20 bg-white/5 px-4 py-2 text-xs font-medium text-[#f4e7b2] shadow-lg shadow-black/20 backdrop-blur-md sm:text-sm">
                 <ShieldCheck className="size-4" />
                 Acesso seguro ao Chronos Audit
               </div>
 
-              <h1 className="mt-6 text-4xl font-semibold leading-[1.05] sm:text-5xl md:text-6xl">
+              <h1 className="mt-5 text-3xl font-semibold leading-tight tracking-tight sm:mt-6 sm:text-5xl md:text-6xl">
                 Entre na sua conta com{" "}
                 <span className="bg-gradient-to-r from-[#f8e7a1] via-[#d4af37] to-[#b88746] bg-clip-text text-transparent">
                   segurança e clareza
                 </span>
               </h1>
 
-              <p className="mt-5 max-w-xl text-base leading-7 text-zinc-300 sm:text-lg md:text-xl md:leading-8">
-                Acesse seus fluxos, evidências, revisões e recursos da
-                plataforma em uma experiência alinhada à governança e à
-                rastreabilidade do trabalho.
+              <p className="mx-auto mt-4 max-w-xl text-sm leading-7 text-zinc-300 sm:mt-5 sm:text-lg md:text-xl md:leading-8 lg:mx-0">
+                Acesse fluxos, evidências, revisões e recursos da plataforma em
+                uma experiência alinhada à governança, rastreabilidade e auditoria.
               </p>
 
-              <div className="mt-8 grid gap-4 sm:grid-cols-3">
+              <div className="mt-7 grid gap-3 sm:grid-cols-3 lg:mt-8">
                 <InfoPill
                   icon={<Lock className="size-4 text-[#d4af37]" />}
                   title="Proteção"
@@ -117,19 +141,19 @@ export default function LoginPage() {
                   text="Fluxos auditáveis"
                 />
                 <InfoPill
-                  icon={<Mail className="size-4 text-[#d4af37]" />}
+                  icon={<Sparkles className="size-4 text-[#d4af37]" />}
                   title="Agilidade"
                   text="Entrada rápida"
                 />
               </div>
             </div>
 
-            <div className="relative">
-              <div className="rounded-[28px] border border-white/10 bg-[#111214]/90 p-2 shadow-2xl shadow-black/30 ring-1 ring-white/10 backdrop-blur-sm">
-                <div className="rounded-[24px] border border-[#d4af37]/15 bg-[linear-gradient(135deg,rgba(212,175,55,0.08),rgba(255,255,255,0.02),rgba(184,135,70,0.06))] p-6 sm:p-8">
+            <div className="order-1 mx-auto w-full max-w-md lg:order-2 lg:max-w-lg">
+              <div className="rounded-[26px] border border-white/10 bg-[#111214]/90 p-2 shadow-2xl shadow-black/40 ring-1 ring-white/10 backdrop-blur-xl sm:rounded-[32px]">
+                <div className="rounded-[22px] border border-[#d4af37]/15 bg-[linear-gradient(135deg,rgba(212,175,55,0.09),rgba(255,255,255,0.025),rgba(184,135,70,0.07))] p-5 sm:rounded-[28px] sm:p-8">
                   <div className="mb-6">
                     <p className="text-sm font-medium text-[#f4e7b2]">Login</p>
-                    <h2 className="mt-2 text-2xl font-semibold text-white sm:text-3xl">
+                    <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
                       Bem-vindo de volta
                     </h2>
                     <p className="mt-2 text-sm leading-6 text-zinc-400">
@@ -138,72 +162,82 @@ export default function LoginPage() {
                   </div>
 
                   <form className="space-y-4" onSubmit={handleSubmit}>
-                    <Field label="E-mail">
+                    <Field label="E-mail" htmlFor="email">
                       <div className="relative">
                         <Mail className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-zinc-500" />
                         <input
+                          id="email"
                           type="email"
                           placeholder="voce@empresa.com"
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
                           autoComplete="email"
-                          className="h-12 w-full rounded-2xl border border-white/10 bg-black/30 pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-zinc-500 focus:border-[#d4af37]/40 focus:ring-2 focus:ring-[#d4af37]/15"
+                          inputMode="email"
+                          disabled={disabled}
+                          className="h-12 w-full rounded-2xl border border-white/10 bg-black/30 pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-zinc-500 disabled:cursor-not-allowed disabled:opacity-60 focus:border-[#d4af37]/50 focus:ring-2 focus:ring-[#d4af37]/15"
                         />
                       </div>
                     </Field>
 
-                    <Field label="Senha">
+                    <Field label="Senha" htmlFor="password">
                       <div className="relative">
                         <Lock className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-zinc-500" />
                         <input
+                          id="password"
                           type={showPassword ? "text" : "password"}
                           placeholder="Digite sua senha"
                           value={password}
                           onChange={(e) => setPassword(e.target.value)}
                           autoComplete="current-password"
-                          className="h-12 w-full rounded-2xl border border-white/10 bg-black/30 pl-11 pr-12 text-sm text-white outline-none transition placeholder:text-zinc-500 focus:border-[#d4af37]/40 focus:ring-2 focus:ring-[#d4af37]/15"
+                          disabled={disabled}
+                          className="h-12 w-full rounded-2xl border border-white/10 bg-black/30 pl-11 pr-12 text-sm text-white outline-none transition placeholder:text-zinc-500 disabled:cursor-not-allowed disabled:opacity-60 focus:border-[#d4af37]/50 focus:ring-2 focus:ring-[#d4af37]/15"
                         />
+
                         <button
                           type="button"
                           onClick={() => setShowPassword((prev) => !prev)}
-                          className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 transition hover:text-white"
+                          disabled={disabled}
+                          className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 transition hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
                           aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
                         >
-                          {showPassword ? (
-                            <EyeOff className="size-4" />
-                          ) : (
-                            <Eye className="size-4" />
-                          )}
+                          {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                         </button>
                       </div>
                     </Field>
 
                     {(error || success) && (
                       <div
-                        className={`rounded-2xl border px-4 py-3 text-sm ${
+                        role="status"
+                        className={`flex gap-3 rounded-2xl border px-4 py-3 text-sm ${
                           error
                             ? "border-red-500/20 bg-red-500/10 text-red-200"
                             : "border-emerald-500/20 bg-emerald-500/10 text-emerald-200"
                         }`}
                       >
-                        {error || success}
+                        {error ? (
+                          <AlertCircle className="mt-0.5 size-4 shrink-0" />
+                        ) : (
+                          <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
+                        )}
+                        <span>{error || success}</span>
                       </div>
                     )}
 
-                    <div className="flex items-center justify-between gap-4 pt-1">
-                      <label className="flex items-center gap-2 text-sm text-zinc-300">
+                    <div className="flex flex-col gap-3 pt-1 sm:flex-row sm:items-center sm:justify-between">
+                      <label className="flex cursor-pointer items-center gap-2 text-sm text-zinc-300">
                         <input
                           type="checkbox"
                           checked={rememberMe}
                           onChange={(e) => setRememberMe(e.target.checked)}
-                          className="size-4 rounded border-white/10 bg-black/30 text-[#d4af37] focus:ring-[#d4af37]/20"
+                          disabled={disabled}
+                          className="size-4 rounded border-white/10 bg-black/30 accent-[#d4af37] disabled:cursor-not-allowed disabled:opacity-60"
                         />
-                        Lembrar de mim
+                        Lembrar meu e-mail
                       </label>
 
                       <Link
                         href="/forgot-password"
-                        className="text-sm text-[#f4e7b2] transition hover:opacity-80"
+                        className="text-sm font-medium text-[#f4e7b2] transition hover:opacity-80"
                       >
                         Esqueci minha senha
                       </Link>
@@ -211,25 +245,61 @@ export default function LoginPage() {
 
                     <Button
                       type="submit"
-                      disabled={isLoading || isGoogleLoading}
-                      className="h-12 w-full rounded-2xl bg-[#d4af37] text-sm font-semibold text-black hover:bg-[#c9a633] disabled:cursor-not-allowed disabled:opacity-60"
+                      disabled={disabled}
+                      className="h-12 w-full rounded-2xl bg-[#d4af37] text-sm font-semibold text-black shadow-lg shadow-[#d4af37]/10 hover:bg-[#c9a633] disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {isLoading ? "Entrando..." : "Entrar"}
+                      {isLoading ? (
+                        <span className="inline-flex items-center gap-2">
+                          <Loader2 className="size-4 animate-spin" />
+                          Entrando...
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-2">
+                          Entrar
+                          <ArrowRight className="size-4" />
+                        </span>
+                      )}
                     </Button>
                   </form>
 
-                  <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                  <div className="my-6 flex items-center gap-3">
+                    <div className="h-px flex-1 bg-white/10" />
+                    <span className="text-xs uppercase tracking-[0.22em] text-zinc-500">
+                      ou
+                    </span>
+                    <div className="h-px flex-1 bg-white/10" />
+                  </div>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleGoogleLogin}
+                    disabled={disabled}
+                    className="h-12 w-full rounded-2xl border-white/10 bg-white/[0.04] text-sm font-semibold text-white hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isGoogleLoading ? (
+                      <span className="inline-flex items-center gap-2">
+                        <Loader2 className="size-4 animate-spin" />
+                        Conectando...
+                      </span>
+                    ) : (
+                      "Entrar com Google"
+                    )}
+                  </Button>
+
+                  <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.035] p-4">
                     <div className="flex items-start gap-3">
-                      <div className="mt-0.5 flex size-9 items-center justify-center rounded-xl border border-[#d4af37]/20 bg-[#d4af37]/10">
+                      <div className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-xl border border-[#d4af37]/20 bg-[#d4af37]/10">
                         <ShieldCheck className="size-4 text-[#d4af37]" />
                       </div>
+
                       <div>
                         <p className="text-sm font-semibold text-white">
                           Ambiente protegido
                         </p>
                         <p className="mt-1 text-sm leading-6 text-zinc-400">
-                          Sua experiência foi desenhada para combinar clareza
-                          operacional, segurança e governança.
+                          Sua experiência combina clareza operacional, segurança
+                          e governança em todos os dispositivos.
                         </p>
                       </div>
                     </div>
@@ -241,7 +311,7 @@ export default function LoginPage() {
                       href="/signup"
                       className="font-medium text-[#f4e7b2] transition hover:opacity-80"
                     >
-                      Inscreva-se
+                      Criar conta
                     </Link>
                   </p>
                 </div>
@@ -272,19 +342,27 @@ function traduzirErroAuth(message: string) {
     return "Muitas tentativas. Tente novamente em alguns minutos."
   }
 
+  if (normalized.includes("network")) {
+    return "Erro de conexão. Verifique sua internet e tente novamente."
+  }
+
   return message
 }
 
 function Field({
   label,
+  htmlFor,
   children,
 }: {
   label: string
+  htmlFor: string
   children: React.ReactNode
 }) {
   return (
     <div className="space-y-2">
-      <label className="text-sm font-medium text-zinc-200">{label}</label>
+      <label htmlFor={htmlFor} className="text-sm font-medium text-zinc-200">
+        {label}
+      </label>
       {children}
     </div>
   )
@@ -300,7 +378,7 @@ function InfoPill({
   text: string
 }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-sm">
+    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-left backdrop-blur-sm transition hover:border-[#d4af37]/20 hover:bg-white/[0.06]">
       <div className="mb-3 flex size-9 items-center justify-center rounded-xl border border-[#d4af37]/20 bg-[#d4af37]/10">
         {icon}
       </div>

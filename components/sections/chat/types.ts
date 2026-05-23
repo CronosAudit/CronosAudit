@@ -8,14 +8,16 @@ import type {
 
 export type ChatRole = "user" | "assistant";
 
-export type ReportData = {
-  id: string;
-  reportHash: string;
+export interface ReportData {
+  id?: string;
   status: string;
-  markdownContent: string | null;
-  resultLink: string | null;
-  generatedAt: string | null;
-};
+  reportHash?: string;
+  resultLink?: string;
+  generatedAt?: string;
+
+  storagePath?: string;
+  storageBucket?: string;
+}
 
 export type ChatMessage = {
   id: string;

@@ -37,7 +37,7 @@ export async function POST(request: Request) {
 
     const upstreamUrl =
     process.env.CHRONOS_UPLOAD_API_URL ||
-    "https://cr6fqv-5000.csb.app/api/ingerir-documentos";
+    "https://llm-chronos-audit.vercel.app/api/ingerir-documentos";
 
     const payload = {
       cnpj,

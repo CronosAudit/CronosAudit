@@ -15,11 +15,7 @@ import {
   FileSearch,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type {
-  AuditMetadataFormProps,
-  TaxRegime,
-  DocumentType,
-} from "./types";
+import type { AuditMetadataFormProps, TaxRegime, DocumentType } from "./types";
 import { formatCnpj } from "./utils";
 import { Button } from "@/components/ui/button";
 
@@ -88,13 +84,11 @@ export function AuditMetadataForm({
   setShowCompanySuggestions,
   compact = false,
 }: AuditMetadataFormProps) {
-  const [selectedCompany, setSelectedCompany] = useState<CompanyData | null>(null);
+  const [selectedCompany, setSelectedCompany] = useState<CompanyData | null>(
+    null,
+  );
   const [companyModalOpen, setCompanyModalOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const mounted = true;
 
   useEffect(() => {
     try {
@@ -119,13 +113,7 @@ export function AuditMetadataForm({
     } catch (error) {
       console.error("Erro ao restaurar dados do processamento:", error);
     }
-  }, [
-    setAnoFiscal,
-    setCnpj,
-    setCompanyQuery,
-    setDocType,
-    setRegimeTributario,
-  ]);
+  }, [setAnoFiscal, setCnpj, setCompanyQuery, setDocType, setRegimeTributario]);
 
   useEffect(() => {
     try {
@@ -143,7 +131,14 @@ export function AuditMetadataForm({
     } catch (error) {
       console.error("Erro ao salvar dados do processamento:", error);
     }
-  }, [companyQuery, cnpj, regimeTributario, anoFiscal, docType, selectedCompany]);
+  }, [
+    companyQuery,
+    cnpj,
+    regimeTributario,
+    anoFiscal,
+    docType,
+    selectedCompany,
+  ]);
 
   useEffect(() => {
     if (!companyModalOpen) return;
@@ -258,7 +253,9 @@ export function AuditMetadataForm({
                     {(selectedCompany.municipio || selectedCompany.uf) && (
                       <span>
                         • {selectedCompany.municipio ?? ""}
-                        {selectedCompany.municipio && selectedCompany.uf ? "/" : ""}
+                        {selectedCompany.municipio && selectedCompany.uf
+                          ? "/"
+                          : ""}
                         {selectedCompany.uf ?? ""}
                       </span>
                     )}
@@ -268,8 +265,14 @@ export function AuditMetadataForm({
             </div>
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-              <InfoRow label="Razão social" value={selectedCompany.razao_social} />
-              <InfoRow label="Nome fantasia" value={selectedCompany.nome_fantasia} />
+              <InfoRow
+                label="Razão social"
+                value={selectedCompany.razao_social}
+              />
+              <InfoRow
+                label="Nome fantasia"
+                value={selectedCompany.nome_fantasia}
+              />
               <InfoRow label="CNPJ" value={formatCnpj(selectedCompany.cnpj)} />
               <InfoRow
                 label="Situação cadastral"
@@ -325,11 +328,13 @@ export function AuditMetadataForm({
 
                 {Array.isArray(selectedCompany.atividades_secundarias) ? (
                   <ul className="space-y-2 text-sm leading-6 text-zinc-200">
-                    {selectedCompany.atividades_secundarias.map((item, index) => (
-                      <li key={`${item}-${index}`} className="break-words">
-                        • {item}
-                      </li>
-                    ))}
+                    {selectedCompany.atividades_secundarias.map(
+                      (item, index) => (
+                        <li key={`${item}-${index}`} className="break-words">
+                          • {item}
+                        </li>
+                      ),
+                    )}
                   </ul>
                 ) : (
                   <p className="break-words text-sm leading-6 text-zinc-200">
@@ -375,10 +380,7 @@ export function AuditMetadataForm({
           )}
         >
           <div
-            className={cn(
-              "min-w-0",
-              compact ? "col-span-1" : "lg:col-span-5",
-            )}
+            className={cn("min-w-0", compact ? "col-span-1" : "lg:col-span-5")}
           >
             <label className="grid gap-2">
               <span className="inline-flex items-center gap-2 text-xs font-medium text-zinc-300">
@@ -451,7 +453,9 @@ export function AuditMetadataForm({
                                 {formatCnpj(suggestion.cnpj)}
                                 {suggestion.municipio || suggestion.uf
                                   ? ` • ${suggestion.municipio ?? ""}${
-                                      suggestion.municipio && suggestion.uf ? "/" : ""
+                                      suggestion.municipio && suggestion.uf
+                                        ? "/"
+                                        : ""
                                     }${suggestion.uf ?? ""}`
                                   : ""}
                                 {suggestion.situacao
@@ -469,10 +473,7 @@ export function AuditMetadataForm({
           </div>
 
           <div
-            className={cn(
-              "min-w-0",
-              compact ? "col-span-1" : "lg:col-span-3",
-            )}
+            className={cn("min-w-0", compact ? "col-span-1" : "lg:col-span-3")}
           >
             <label className="grid gap-2">
               <span className="inline-flex items-center gap-2 text-xs font-medium text-zinc-300">
@@ -524,7 +525,9 @@ export function AuditMetadataForm({
                     inputMode="numeric"
                     value={anoFiscal}
                     onChange={(e) =>
-                      setAnoFiscal(e.target.value.replace(/\D/g, "").slice(0, 4))
+                      setAnoFiscal(
+                        e.target.value.replace(/\D/g, "").slice(0, 4),
+                      )
                     }
                     placeholder="2025"
                     className={inputClassName}
@@ -543,7 +546,9 @@ export function AuditMetadataForm({
                     onChange={(e) => setDocType(e.target.value as DocumentType)}
                     className={inputClassName}
                   >
-                    <option value="documento_contabil">Documento contábil</option>
+                    <option value="documento_contabil">
+                      Documento contábil
+                    </option>
                     <option value="razao_contabil">Razão contábil</option>
                     <option value="balancete">Balancete</option>
                     <option value="dre">DRE</option>
@@ -558,15 +563,15 @@ export function AuditMetadataForm({
 
         {selectedCompany && (
           <div className="mt-4 rounded-2xl ">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => setCompanyModalOpen(true)}
-                className="w-full rounded-xl border border-white/10 bg-white/[0.03] text-zinc-200 hover:bg-white/10 hover:text-white sm:w-auto"
-              >
-                <Info className="mr-2 size-4" />
-                Ver detalhes
-              </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setCompanyModalOpen(true)}
+              className="w-full rounded-xl border border-white/10 bg-white/[0.03] text-zinc-200 hover:bg-white/10 hover:text-white sm:w-auto"
+            >
+              <Info className="mr-2 size-4" />
+              Ver detalhes
+            </Button>
           </div>
         )}
       </div>
