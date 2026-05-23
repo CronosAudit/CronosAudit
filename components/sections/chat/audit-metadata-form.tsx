@@ -7,6 +7,7 @@ import {
   Building2,
   CalendarRange,
   FileText,
+  FolderKanban,
   FolderUp,
   Loader2,
   MapPin,
@@ -82,13 +83,31 @@ export function AuditMetadataForm({
   isSearchingCompanies,
   showCompanySuggestions,
   setShowCompanySuggestions,
+  linkedProject,
+  setLinkedProject,
+  projects,
+  isLoadingProjects = false,
   compact = false,
 }: AuditMetadataFormProps) {
   const [selectedCompany, setSelectedCompany] = useState<CompanyData | null>(
     null,
   );
   const [companyModalOpen, setCompanyModalOpen] = useState(false);
+  const [projectSearch, setProjectSearch] = useState(linkedProject);
+  const [projectDropdownOpen, setProjectDropdownOpen] = useState(false);
   const mounted = true;
+
+  useEffect(() => {
+    setProjectSearch(linkedProject);
+  }, [linkedProject]);
+
+  const filteredProjects = useMemo(() => {
+    const term = projectSearch.trim().toLowerCase();
+    if (!term) return projects;
+    return projects.filter((project) =>
+      project.name.toLowerCase().includes(term),
+    );
+  }, [projects, projectSearch]);
 
   useEffect(() => {
     try {
@@ -535,7 +554,7 @@ export function AuditMetadataForm({
                 </label>
               </div>
 
-              <div className="min-w-0 lg:col-span-8">
+              <div className="min-w-0 lg:col-span-4">
                 <label className="grid gap-2">
                   <span className="inline-flex items-center gap-2 text-xs font-medium text-zinc-300">
                     <FileText className="size-3.5 shrink-0" />
@@ -555,6 +574,104 @@ export function AuditMetadataForm({
                     <option value="livro_fiscal">Livro Fiscal</option>
                     <option value="outro">Outro</option>
                   </select>
+                </label>
+              </div>
+
+              <div className="min-w-0 lg:col-span-4">
+                <label className="grid gap-2">
+                  <span className="inline-flex items-center gap-2 text-xs font-medium text-zinc-300">
+                    <FolderKanban className="size-3.5 shrink-0" />
+                    Projeto vinculado
+                  </span>
+
+                  <div className="relative min-w-0">
+                    <input
+                      type="text"
+                      value={projectSearch}
+                      onChange={(e) => {
+                        setProjectSearch(e.target.value);
+                        setProjectDropdownOpen(true);
+                      }}
+                      onFocus={() => setProjectDropdownOpen(true)}
+                      onBlur={() => {
+                        window.setTimeout(() => {
+                          setProjectDropdownOpen(false);
+                          setProjectSearch(linkedProject);
+                        }, 150);
+                      }}
+                      disabled={isLoadingProjects}
+                      placeholder={
+                        isLoadingProjects
+                          ? "Carregando projetos..."
+                          : projects.length === 0
+                            ? "Nenhum projeto disponível"
+                            : "Buscar projeto..."
+                      }
+                      className={inputClassName}
+                    />
+
+                    {linkedProject && !projectDropdownOpen && (
+                      <button
+                        type="button"
+                        aria-label="Limpar projeto vinculado"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          setLinkedProject("");
+                          setProjectSearch("");
+                        }}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 transition hover:text-white"
+                      >
+                        <X className="size-3.5" />
+                      </button>
+                    )}
+
+                    {projectDropdownOpen && projects.length > 0 && (
+                      <div className="chat-scroll-y absolute left-0 right-0 top-full z-30 mt-2 max-h-60 overflow-y-auto rounded-2xl border border-white/10 bg-[#0f1012] p-2 shadow-2xl">
+                        {filteredProjects.length === 0 ? (
+                          <div className="px-3 py-3 text-sm text-zinc-400">
+                            Nenhum projeto corresponde a &quot;{projectSearch}&quot;.
+                          </div>
+                        ) : (
+                          filteredProjects.map((project) => {
+                            const isSelected =
+                              project.name === linkedProject;
+                            return (
+                              <button
+                                key={project.path}
+                                type="button"
+                                onMouseDown={(e) => {
+                                  e.preventDefault();
+                                  setLinkedProject(project.name);
+                                  setProjectSearch(project.name);
+                                  setProjectDropdownOpen(false);
+                                }}
+                                className={cn(
+                                  "flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left transition hover:bg-white/10",
+                                  isSelected &&
+                                    "bg-[#d4af37]/10 text-[#f4e7b2]",
+                                )}
+                              >
+                                <span className="truncate text-sm font-medium text-white">
+                                  {project.name}
+                                </span>
+                                {isSelected && (
+                                  <span className="ml-2 shrink-0 text-xs uppercase tracking-wide text-[#f4e7b2]">
+                                    Selecionado
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {projects.length === 0 && !isLoadingProjects && (
+                    <span className="text-xs text-zinc-500">
+                      Crie um projeto em /projetos para vincular ao chat.
+                    </span>
+                  )}
                 </label>
               </div>
             </>

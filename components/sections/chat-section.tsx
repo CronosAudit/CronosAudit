@@ -25,6 +25,8 @@ import type {
   CompanySuggestion,
   ConversationFile,
   DocumentType,
+  ProjectFile,
+  ProjectSummary,
   ReportData,
   TaxRegime,
 } from "./chat/types";
@@ -142,6 +144,192 @@ function getReportLinkFromResponse(responseData: SafeResponseData | null) {
   );
 }
 
+const EVIDENCES_BUCKET = "evidences";
+const PROJECTS_ROOT = "projetos";
+const LINKED_PROJECT_STORAGE_PREFIX = "chronos_audit_linked_project::";
+
+function getLinkedProjectStorageKey(conversationId: string) {
+  return `${LINKED_PROJECT_STORAGE_PREFIX}${conversationId}`;
+}
+
+function readLinkedProjectFromStorage(conversationId: string) {
+  if (!conversationId || typeof window === "undefined") return "";
+  try {
+    return window.localStorage.getItem(getLinkedProjectStorageKey(conversationId)) || "";
+  } catch {
+    return "";
+  }
+}
+
+function writeLinkedProjectToStorage(conversationId: string, value: string) {
+  if (!conversationId || typeof window === "undefined") return;
+  try {
+    if (value) {
+      window.localStorage.setItem(getLinkedProjectStorageKey(conversationId), value);
+    } else {
+      window.localStorage.removeItem(getLinkedProjectStorageKey(conversationId));
+    }
+  } catch {
+    // ignore storage errors
+  }
+}
+
+const REPORT_SUPABASE_PROJECT_URL = "https://wtclrcxcsnsoqhwsnkss.supabase.co";
+
+function isAbsoluteUrl(value: string) {
+  return /^https?:\/\//i.test(value);
+}
+
+function buildReportPublicUrlCandidates(params: {
+  bucket: string;
+  storagePath: string;
+  reportLink: string;
+  reportHash: string;
+}) {
+  const { bucket, storagePath, reportLink, reportHash } = params;
+  const candidates: string[] = [];
+  const safeBucket = bucket || "relatorios";
+
+  const buildFromPath = (path: string) => {
+    const cleaned = path
+      .trim()
+      .replace(
+        `${REPORT_SUPABASE_PROJECT_URL}/storage/v1/object/public/${safeBucket}/`,
+        "",
+      )
+      .replace(
+        `${REPORT_SUPABASE_PROJECT_URL}/storage/v1/object/public/`,
+        "",
+      )
+      .replace(/^\/+/, "")
+      .replace(/^storage\/v1\/object\/public\//, "")
+      .replace(new RegExp(`^${safeBucket}/`), "");
+
+    const encoded = cleaned
+      .split("/")
+      .filter(Boolean)
+      .map((part) => encodeURIComponent(part))
+      .join("/");
+
+    return `${REPORT_SUPABASE_PROJECT_URL}/storage/v1/object/public/${safeBucket}/${encoded}`;
+  };
+
+  if (storagePath) candidates.push(buildFromPath(storagePath));
+
+  if (reportLink) {
+    if (isAbsoluteUrl(reportLink)) {
+      candidates.push(reportLink);
+    }
+    candidates.push(buildFromPath(reportLink));
+  }
+
+  if (reportHash && !reportHash.startsWith("conv_")) {
+    candidates.push(buildFromPath(reportHash));
+    candidates.push(buildFromPath(`${reportHash}.pdf`));
+    candidates.push(buildFromPath(`auditoria_${reportHash}.pdf`));
+  }
+
+  return [...new Set(candidates)];
+}
+
+async function fetchReportBlob(params: {
+  bucket: string;
+  storagePath: string;
+  reportLink: string;
+  reportHash: string;
+}): Promise<{ blob: Blob; sourceName: string } | null> {
+  const { bucket, storagePath } = params;
+
+  if (storagePath) {
+    const cleanPath = storagePath
+      .replace(/^\/+/, "")
+      .replace(new RegExp(`^${bucket || "relatorios"}/`), "");
+    const { data, error } = await supabase.storage
+      .from(bucket || "relatorios")
+      .download(cleanPath);
+    if (!error && data) {
+      const sourceName = cleanPath.split("/").pop() || "relatorio.pdf";
+      return { blob: data, sourceName };
+    }
+  }
+
+  const candidates = buildReportPublicUrlCandidates(params);
+  for (const url of candidates) {
+    try {
+      const response = await fetch(url, { cache: "no-store" });
+      if (response.ok) {
+        const blob = await response.blob();
+        const fromUrl = url.split("/").pop() || "";
+        const sourceName = fromUrl
+          ? decodeURIComponent(fromUrl).split("?")[0] || "relatorio.pdf"
+          : "relatorio.pdf";
+        return { blob, sourceName };
+      }
+    } catch {
+      // try next candidate
+    }
+  }
+
+  return null;
+}
+
+async function copyReportToLinkedProject(params: {
+  userId: string;
+  projectName: string;
+  reportHash: string;
+  reportLink: string;
+  reportStoragePath: string;
+  reportStorageBucket: string;
+}): Promise<{ ok: boolean; fileName?: string }> {
+  const {
+    userId,
+    projectName,
+    reportHash,
+    reportLink,
+    reportStoragePath,
+    reportStorageBucket,
+  } = params;
+
+  try {
+    const fetched = await fetchReportBlob({
+      bucket: reportStorageBucket,
+      storagePath: reportStoragePath,
+      reportLink,
+      reportHash,
+    });
+
+    if (!fetched) return { ok: false };
+
+    const baseName = (fetched.sourceName || "relatorio.pdf").replace(
+      /[^a-zA-Z0-9._-]/g,
+      "_",
+    );
+    const ensurePdf = baseName.toLowerCase().endsWith(".pdf")
+      ? baseName
+      : `${baseName}.pdf`;
+    const fileName = `relatorio_${reportHash || Date.now()}_${ensurePdf}`;
+    const destinationPath = `${userId}/projetos/${projectName}/${fileName}`;
+
+    const { error } = await supabase.storage
+      .from(EVIDENCES_BUCKET)
+      .upload(destinationPath, fetched.blob, {
+        cacheControl: "3600",
+        upsert: true,
+        contentType: fetched.blob.type || "application/pdf",
+      });
+
+    if (error) {
+      console.error("Erro ao copiar relatório para o projeto:", error);
+      return { ok: false };
+    }
+
+    return { ok: true, fileName };
+  } catch (error) {
+    console.error("Falha ao copiar relatório para o projeto:", error);
+    return { ok: false };
+  }
+}
+
 export function ChatSection() {
   const SUPABASE_PROJECT_URL = "https://wtclrcxcsnsoqhwsnkss.supabase.co";
   const REPORTS_BUCKET = "relatorios";
@@ -199,6 +387,12 @@ export function ChatSection() {
   const [latestReport, setLatestReport] = useState<ReportData | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
 
+  const [projects, setProjects] = useState<ProjectSummary[]>([]);
+  const [isLoadingProjects, setIsLoadingProjects] = useState(false);
+  const [linkedProject, setLinkedProjectState] = useState<string>("");
+  const [projectFiles, setProjectFiles] = useState<ProjectFile[]>([]);
+  const [isLoadingProjectFiles, setIsLoadingProjectFiles] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -219,6 +413,142 @@ export function ChatSection() {
       conversations.find((item) => item.id === activeConversationId) ?? null
     );
   }, [conversations, activeConversationId]);
+
+  const setLinkedProject = useCallback(
+    (value: string) => {
+      setLinkedProjectState(value);
+      if (activeConversationId) {
+        writeLinkedProjectToStorage(activeConversationId, value);
+      }
+    },
+    [activeConversationId],
+  );
+
+  const loadProjects = useCallback(async (uid: string) => {
+    if (!uid) return [];
+
+    try {
+      setIsLoadingProjects(true);
+
+      const basePath = `${uid}/${PROJECTS_ROOT}`;
+      const { data, error } = await supabase.storage
+        .from(EVIDENCES_BUCKET)
+        .list(basePath, {
+          limit: 500,
+          offset: 0,
+          sortBy: { column: "name", order: "asc" },
+        });
+
+      if (error) {
+        console.error("Erro ao listar projetos:", error);
+        return [];
+      }
+
+      const folders = (data ?? []).filter(
+        (entry) => !entry.updated_at && !entry.created_at && !entry.metadata,
+      );
+
+      const mapped = folders.map((entry) => ({
+        name: entry.name,
+        path: `${basePath}/${entry.name}`,
+      }));
+
+      setProjects(mapped);
+      return mapped;
+    } finally {
+      setIsLoadingProjects(false);
+    }
+  }, []);
+
+  const selectProjectFile = useCallback(
+    async (projectFile: ProjectFile): Promise<boolean> => {
+      try {
+        setErrorMessage("");
+
+        const { data, error } = await supabase.storage
+          .from(EVIDENCES_BUCKET)
+          .download(projectFile.path);
+
+        if (error || !data) {
+          console.error("Erro ao baixar arquivo do projeto:", error);
+          setErrorMessage(
+            "Não foi possível carregar o arquivo do projeto selecionado.",
+          );
+          return false;
+        }
+
+        const downloaded = new File([data], projectFile.name, {
+          type: data.type || "application/octet-stream",
+        });
+
+        setFile(downloaded);
+
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "";
+        }
+
+        return true;
+      } catch (error) {
+        console.error("Erro ao carregar arquivo do projeto:", error);
+        setErrorMessage(
+          "Não foi possível carregar o arquivo do projeto selecionado.",
+        );
+        return false;
+      }
+    },
+    [],
+  );
+
+  const loadProjectFiles = useCallback(
+    async (uid: string, projectName: string) => {
+      if (!uid || !projectName) {
+        setProjectFiles([]);
+        return [];
+      }
+
+      try {
+        setIsLoadingProjectFiles(true);
+
+        const basePath = `${uid}/${PROJECTS_ROOT}/${projectName}`;
+        const { data, error } = await supabase.storage
+          .from(EVIDENCES_BUCKET)
+          .list(basePath, {
+            limit: 1000,
+            offset: 0,
+            sortBy: { column: "updated_at", order: "desc" },
+          });
+
+        if (error) {
+          console.error("Erro ao listar arquivos do projeto:", error);
+          setProjectFiles([]);
+          return [];
+        }
+
+        const files = (data ?? [])
+          .filter(
+            (item) =>
+              !!item.name &&
+              item.name !== ".keep" &&
+              !item.name.startsWith(".") &&
+              (item.updated_at || item.created_at || item.metadata),
+          )
+          .map((item, idx) => ({
+            id: String(item.id || `${basePath}-${item.name}-${idx}`),
+            name: item.name,
+            path: `${basePath}/${item.name}`,
+            size: item.metadata?.size ?? null,
+            updatedAt:
+              item.updated_at || item.created_at || new Date().toISOString(),
+          }));
+
+        setProjectFiles(files);
+        return files;
+      } finally {
+        setIsLoadingProjectFiles(false);
+      }
+    },
+    [],
+  );
 
   const hasStartedChat = messages.length > 0;
   const hasMessage = message.trim().length > 0 || file !== null;
@@ -406,6 +736,10 @@ export function ChatSection() {
           status: data.status,
         };
 
+        if (linkedProject) {
+          writeLinkedProjectToStorage(newConversation.id, linkedProject);
+        }
+
         setConversations((prev) => [newConversation, ...prev]);
         setActiveConversationId(newConversation.id);
         setMessages([]);
@@ -428,7 +762,7 @@ export function ChatSection() {
         return null;
       }
     },
-    [userId, insertAssistantMessage, loadConversationDetails],
+    [userId, insertAssistantMessage, loadConversationDetails, linkedProject],
   );
 
   const startDraftConversation = useCallback(() => {
@@ -459,6 +793,8 @@ export function ChatSection() {
 
         setUserId(user.id);
 
+        void loadProjects(user.id);
+
         const loaded = await loadConversations(user.id);
 
         if (loaded.length > 0) {
@@ -478,7 +814,7 @@ export function ChatSection() {
     };
 
     bootstrap();
-  }, [loadConversations]);
+  }, [loadConversations, loadProjects]);
 
   useEffect(() => {
     if (!activeConversationId) return;
@@ -495,6 +831,22 @@ export function ChatSection() {
 
     run();
   }, [activeConversationId, loadConversationDetails]);
+
+  useEffect(() => {
+    if (!activeConversationId) {
+      setLinkedProjectState("");
+      return;
+    }
+    setLinkedProjectState(readLinkedProjectFromStorage(activeConversationId));
+  }, [activeConversationId]);
+
+  useEffect(() => {
+    if (!userId || !linkedProject) {
+      setProjectFiles([]);
+      return;
+    }
+    void loadProjectFiles(userId, linkedProject);
+  }, [userId, linkedProject, loadProjectFiles]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -862,6 +1214,12 @@ export function ChatSection() {
       const reportMarkdown = getReportMarkdownFromResponse(responseData);
 
       const reportLink = String(getReportLinkFromResponse(responseData) || "");
+      const reportStoragePath = String(
+        getReportStoragePathFromResponse(responseData) || "",
+      );
+      const reportStorageBucket = String(
+        getReportStorageBucketFromResponse(responseData) || REPORTS_BUCKET,
+      );
 
       console.log("RESPONSE GERAR RELATORIO:", responseData);
       console.log("REPORT LINK EXTRAIDO:", reportLink);
@@ -882,11 +1240,29 @@ export function ChatSection() {
 
       if (reportInsertError) throw reportInsertError;
 
+      let projectCopyResult: { ok: boolean; fileName?: string } = { ok: false };
+      if (linkedProject) {
+        projectCopyResult = await copyReportToLinkedProject({
+          userId,
+          projectName: linkedProject,
+          reportHash,
+          reportLink,
+          reportStoragePath,
+          reportStorageBucket,
+        });
+      }
+
+      const assistantContent = reportLink
+        ? linkedProject
+          ? projectCopyResult.ok
+            ? `Relatório gerado com sucesso. O hash desta execução é ${reportHash} e o arquivo final foi salvo na pasta do projeto "${linkedProject}" (${projectCopyResult.fileName}).`
+            : `Relatório gerado com sucesso (hash ${reportHash}), mas não foi possível copiá-lo automaticamente para a pasta do projeto "${linkedProject}". Use o link disponível para baixar manualmente.`
+          : `Relatório gerado com sucesso. O hash desta execução é ${reportHash} e o arquivo final já está disponível para visualização e download.`
+        : `A solicitação de relatório foi concluída com status "${reportStatus}", mas o backend não retornou um link público do PDF. Verifique se o campo "link", "result_link", "publicUrl" ou "download_url" está sendo retornado pela rota de geração.`;
+
       await insertAssistantMessage(
         activeConversation.id,
-        reportLink
-          ? `Relatório gerado com sucesso. O hash desta execução é ${reportHash} e o arquivo final já está disponível para visualização e download.`
-          : `A solicitação de relatório foi concluída com status "${reportStatus}", mas o backend não retornou um link público do PDF. Verifique se o campo "link", "result_link", "publicUrl" ou "download_url" está sendo retornado pela rota de geração.`,
+        assistantContent,
         {
           reportHash,
           reportLink,
@@ -894,6 +1270,13 @@ export function ChatSection() {
           cnpj: normalizedCnpj,
           regime_tributario: regimeTributario,
           ano_fiscal: anoFiscal,
+          linked_project: linkedProject || null,
+          project_copy_status: linkedProject
+            ? projectCopyResult.ok
+              ? "saved"
+              : "failed"
+            : "skipped",
+          project_copy_file: projectCopyResult.fileName || null,
         },
       );
 
@@ -904,6 +1287,10 @@ export function ChatSection() {
 
       await loadConversationDetails(activeConversation.id);
       await loadConversations(userId);
+
+      if (linkedProject && projectCopyResult.ok) {
+        await loadProjectFiles(userId, linkedProject);
+      }
     } catch (error) {
       console.error(error);
       setErrorMessage(
@@ -961,6 +1348,13 @@ export function ChatSection() {
         isSearchingCompanies={isSearchingCompanies}
         showCompanySuggestions={showCompanySuggestions}
         setShowCompanySuggestions={setShowCompanySuggestions}
+        linkedProject={linkedProject}
+        setLinkedProject={setLinkedProject}
+        projects={projects}
+        projectFiles={projectFiles}
+        isLoadingProjects={isLoadingProjects}
+        isLoadingProjectFiles={isLoadingProjectFiles}
+        selectProjectFile={selectProjectFile}
       />
     );
   }
@@ -1010,6 +1404,12 @@ export function ChatSection() {
       isSearchingCompanies={isSearchingCompanies}
       showCompanySuggestions={showCompanySuggestions}
       setShowCompanySuggestions={setShowCompanySuggestions}
+      linkedProject={linkedProject}
+      setLinkedProject={setLinkedProject}
+      projects={projects}
+      projectFiles={projectFiles}
+      isLoadingProjects={isLoadingProjects}
+      isLoadingProjectFiles={isLoadingProjectFiles}
     />
   );
 }

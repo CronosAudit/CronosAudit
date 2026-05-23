@@ -10,6 +10,7 @@ import {
   Eye,
   FileText,
   FileUp,
+  FolderKanban,
   Hourglass,
   Loader2,
   Menu,
@@ -136,6 +137,12 @@ export function ChatConversationView({
   isSearchingCompanies,
   showCompanySuggestions,
   setShowCompanySuggestions,
+  linkedProject,
+  setLinkedProject,
+  projects,
+  projectFiles,
+  isLoadingProjects,
+  isLoadingProjectFiles,
 }: ConversationProps) {
   const [conversationToDelete, setConversationToDelete] = useState<{
     id: string;
@@ -595,7 +602,11 @@ export function ChatConversationView({
                       />
                       <InlineMetaBadge
                         icon={<FileText className="size-3.5" />}
-                        label={`${conversationFiles.length} arquivos`}
+                        label={
+                          linkedProject
+                            ? `${projectFiles.length} arquivos · ${linkedProject}`
+                            : `${conversationFiles.length} arquivos`
+                        }
                       />
                       {resolvedReportUrl && (
                         <InlineMetaBadge
@@ -854,22 +865,63 @@ export function ChatConversationView({
                     isSearchingCompanies={isSearchingCompanies}
                     showCompanySuggestions={showCompanySuggestions}
                     setShowCompanySuggestions={setShowCompanySuggestions}
+                    linkedProject={linkedProject}
+                    setLinkedProject={setLinkedProject}
+                    projects={projects}
+                    isLoadingProjects={isLoadingProjects}
                     compact
                   />
                 </div>
                 <div className="chat-panel rounded-3xl p-4">
                   <div className="mb-3 flex items-center gap-2 text-sm text-[#f4e7b2]">
-                    <FileText className="size-4 shrink-0" />
-                    Arquivos da conversa
+                    <FolderKanban className="size-4 shrink-0" />
+                    <span className="truncate">
+                      Arquivos do projeto
+                      {linkedProject ? ` · ${linkedProject}` : ""}
+                    </span>
                   </div>
 
-                  {conversationFiles.length === 0 ? (
+                  <label className="mb-3 grid gap-1.5">
+                    <span className="text-xs text-zinc-400">
+                      Projeto vinculado
+                    </span>
+                    <select
+                      value={linkedProject}
+                      onChange={(e) => setLinkedProject(e.target.value)}
+                      disabled={isLoadingProjects}
+                      className="h-10 w-full rounded-xl border border-white/10 bg-black/30 px-3 text-sm text-white outline-none transition placeholder:text-zinc-500 focus:border-[#d4af37]/40"
+                    >
+                      <option value="">
+                        {isLoadingProjects
+                          ? "Carregando..."
+                          : projects.length === 0
+                            ? "Nenhum projeto disponível"
+                            : "Selecione um projeto"}
+                      </option>
+                      {projects.map((project) => (
+                        <option key={project.path} value={project.name}>
+                          {project.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  {isLoadingProjectFiles ? (
+                    <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-3 text-sm text-zinc-300">
+                      <Loader2 className="size-4 animate-spin text-[#d4af37]" />
+                      Carregando arquivos do projeto...
+                    </div>
+                  ) : !linkedProject ? (
                     <p className="text-sm text-zinc-400">
-                      Nenhum arquivo anexado nesta conversa.
+                      Selecione um projeto para listar seus arquivos.
+                    </p>
+                  ) : projectFiles.length === 0 ? (
+                    <p className="text-sm text-zinc-400">
+                      Este projeto ainda não possui arquivos.
                     </p>
                   ) : (
                     <div className="space-y-2">
-                      {conversationFiles.map((item) => (
+                      {projectFiles.map((item) => (
                         <div
                           key={item.id}
                           className="rounded-2xl border border-white/10 bg-white/[0.02] px-3 py-3"
@@ -881,21 +933,19 @@ export function ChatConversationView({
 
                             <div className="min-w-0 flex-1">
                               <p className="truncate text-sm font-medium text-white">
-                                {item.originalFileName}
+                                {item.name}
                               </p>
 
                               <p className="mt-1 text-xs text-zinc-500">
-                                {formatConversationDate(item.createdAt)} às{" "}
-                                {formatTimeLabel(item.createdAt)}
+                                {formatConversationDate(item.updatedAt)} às{" "}
+                                {formatTimeLabel(item.updatedAt)}
                               </p>
                             </div>
                           </div>
 
                           <button
                             type="button"
-                            onClick={() =>
-                              handleInsertFileInChat(item.originalFileName)
-                            }
+                            onClick={() => handleInsertFileInChat(item.name)}
                             className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-zinc-200 transition hover:bg-white/10 hover:text-white"
                           >
                             <MessageSquare className="size-3.5" />

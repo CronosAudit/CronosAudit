@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -11,16 +11,20 @@ import {
   FileSearch,
   FileText,
   FileUp,
+  FolderKanban,
+  Loader2,
   Paperclip,
   Scale,
+  Search,
   ShieldCheck,
   Sparkles,
   MessageSquare,
+  X,
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { LandingProps } from "./types";
+import type { LandingProps, ProjectFile } from "./types";
 import { AuditMetadataForm } from "./audit-metadata-form";
 import { InlineMetaBadge, QuickAction } from "./chat-ui";
 
@@ -56,11 +60,59 @@ export function ChatLandingView({
   isSearchingCompanies,
   showCompanySuggestions,
   setShowCompanySuggestions,
+  linkedProject,
+  setLinkedProject,
+  projects,
+  projectFiles,
+  isLoadingProjects,
+  isLoadingProjectFiles,
+  selectProjectFile,
 }: LandingProps) {
   const suggestedPrompt =
     "Analise este documento e identifique riscos relevantes, inconsistências, pontos de atenção para auditoria e uma proposta de evidências a serem solicitadas.";
 
   const [copiedPrompt, setCopiedPrompt] = useState(false);
+  const [filePickerOpen, setFilePickerOpen] = useState(false);
+  const [projectFileSearch, setProjectFileSearch] = useState("");
+  const [pickingFileId, setPickingFileId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!filePickerOpen) return;
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setFilePickerOpen(false);
+    };
+
+    document.addEventListener("keydown", onKey);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [filePickerOpen]);
+
+  const filteredProjectFiles = useMemo(() => {
+    const term = projectFileSearch.trim().toLowerCase();
+    if (!term) return projectFiles;
+    return projectFiles.filter((item) =>
+      item.name.toLowerCase().includes(term),
+    );
+  }, [projectFiles, projectFileSearch]);
+
+  const handlePickProjectFile = async (projectFile: ProjectFile) => {
+    setPickingFileId(projectFile.id);
+    try {
+      const ok = await selectProjectFile(projectFile);
+      if (ok) {
+        setFilePickerOpen(false);
+        setProjectFileSearch("");
+      }
+    } finally {
+      setPickingFileId(null);
+    }
+  };
 
   async function handleCopyPrompt() {
     try {
@@ -144,6 +196,10 @@ export function ChatLandingView({
                 isSearchingCompanies={isSearchingCompanies}
                 showCompanySuggestions={showCompanySuggestions}
                 setShowCompanySuggestions={setShowCompanySuggestions}
+                linkedProject={linkedProject}
+                setLinkedProject={setLinkedProject}
+                projects={projects}
+                isLoadingProjects={isLoadingProjects}
               />
 
               {latestReport?.resultLink && (
@@ -240,7 +296,7 @@ export function ChatLandingView({
                       type="button"
                       variant="ghost"
                       size="icon"
-                      onClick={() => fileInputRef.current?.click()}
+                      onClick={() => setFilePickerOpen(true)}
                       className="hidden rounded-xl text-zinc-300 hover:bg-white/10 hover:text-white sm:inline-flex"
                     >
                       <Paperclip className="size-4" />
@@ -249,7 +305,7 @@ export function ChatLandingView({
                     <Button
                       type="button"
                       variant="ghost"
-                      onClick={() => fileInputRef.current?.click()}
+                      onClick={() => setFilePickerOpen(true)}
                       className="w-full justify-start rounded-xl border border-white/10 bg-white/[0.03] text-zinc-300 hover:bg-white/10 hover:text-white sm:w-auto sm:max-w-[320px]"
                     >
                       <FileUp className="mr-2 size-4 shrink-0" />
@@ -329,6 +385,144 @@ export function ChatLandingView({
           </div>
         </div>
       </div>
+
+      {filePickerOpen && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center px-4 py-6"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="absolute inset-0 bg-black/75 backdrop-blur-sm"
+            onClick={() => setFilePickerOpen(false)}
+          />
+
+          <div className="relative z-10 flex w-full max-w-lg flex-col overflow-hidden rounded-[24px] border border-white/10 bg-[#121214] shadow-2xl shadow-black/40">
+            <div className="flex items-start justify-between gap-3 border-b border-white/10 px-5 py-4">
+              <div className="min-w-0">
+                <div className="inline-flex items-center gap-2 rounded-full border border-[#d4af37]/20 bg-[#d4af37]/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.14em] text-[#f4e7b2]">
+                  <FolderKanban className="size-3.5" />
+                  Arquivos do projeto
+                </div>
+                <h3 className="mt-2 truncate text-base font-semibold text-white">
+                  {linkedProject
+                    ? `Selecionar arquivo de "${linkedProject}"`
+                    : "Vincule um projeto para listar arquivos"}
+                </h3>
+              </div>
+
+              <button
+                type="button"
+                aria-label="Fechar"
+                onClick={() => setFilePickerOpen(false)}
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 text-zinc-300 transition hover:bg-white/10 hover:text-white"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            {linkedProject ? (
+              <>
+                <div className="border-b border-white/10 px-5 py-3">
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-zinc-500" />
+                    <input
+                      type="text"
+                      autoFocus
+                      value={projectFileSearch}
+                      onChange={(e) => setProjectFileSearch(e.target.value)}
+                      placeholder="Buscar arquivo no projeto..."
+                      className="h-10 w-full rounded-xl border border-white/10 bg-black/30 pl-10 pr-3 text-sm text-white outline-none transition placeholder:text-zinc-500 focus:border-[#d4af37]/40 focus:ring-2 focus:ring-[#d4af37]/15"
+                    />
+                  </div>
+                </div>
+
+                <div className="chat-scroll-y max-h-[55vh] overflow-y-auto px-3 py-3">
+                  {isLoadingProjectFiles ? (
+                    <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-3 text-sm text-zinc-300">
+                      <Loader2 className="size-4 animate-spin text-[#d4af37]" />
+                      Carregando arquivos do projeto...
+                    </div>
+                  ) : filteredProjectFiles.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] px-4 py-8 text-center text-sm text-zinc-400">
+                      {projectFiles.length === 0
+                        ? "Este projeto ainda não possui arquivos."
+                        : `Nenhum arquivo corresponde a "${projectFileSearch}".`}
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {filteredProjectFiles.map((item) => {
+                        const isLoading = pickingFileId === item.id;
+                        const isCurrent = file?.name === item.name;
+
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            disabled={pickingFileId !== null}
+                            onClick={() => handlePickProjectFile(item)}
+                            className={cn(
+                              "flex w-full items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.02] px-3 py-3 text-left transition hover:border-[#d4af37]/30 hover:bg-white/10 disabled:cursor-not-allowed",
+                              isCurrent &&
+                                "border-[#d4af37]/30 bg-[#d4af37]/10",
+                            )}
+                          >
+                            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-zinc-300">
+                              <FileText className="size-4" />
+                            </div>
+
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-medium text-white">
+                                {item.name}
+                              </p>
+                              <p className="mt-1 text-xs text-zinc-500">
+                                {typeof item.size === "number"
+                                  ? formatFileSize(item.size)
+                                  : "Tamanho desconhecido"}
+                              </p>
+                            </div>
+
+                            {isLoading && (
+                              <Loader2 className="size-4 shrink-0 animate-spin text-[#d4af37]" />
+                            )}
+
+                            {isCurrent && !isLoading && (
+                              <Check className="size-4 shrink-0 text-[#f4e7b2]" />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="px-5 py-8 text-center">
+                <FolderKanban className="mx-auto size-10 text-zinc-600" />
+                <p className="mt-3 text-sm font-medium text-white">
+                  Nenhum projeto vinculado
+                </p>
+                <p className="mt-2 text-sm text-zinc-400">
+                  Selecione um projeto no campo &quot;Projeto vinculado&quot; para
+                  listar seus arquivos aqui.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </section>
   );
+}
+
+function formatFileSize(bytes: number) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let value = bytes;
+  let unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+  return `${value.toFixed(value >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
 }

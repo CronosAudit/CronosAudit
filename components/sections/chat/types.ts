@@ -46,6 +46,19 @@ export type ConversationFile = {
   createdAt: string;
 };
 
+export type ProjectSummary = {
+  name: string;
+  path: string;
+};
+
+export type ProjectFile = {
+  id: string;
+  name: string;
+  path: string;
+  size: number | null;
+  updatedAt: string;
+};
+
 export type CompanySuggestion = {
   cnpj: string;
   razao_social: string;
@@ -92,6 +105,10 @@ export type AuditMetadataFormProps = {
   isSearchingCompanies: boolean;
   showCompanySuggestions: boolean;
   setShowCompanySuggestions: Dispatch<SetStateAction<boolean>>;
+  linkedProject: string;
+  setLinkedProject: (value: string) => void;
+  projects: ProjectSummary[];
+  isLoadingProjects?: boolean;
   compact?: boolean;
 };
 
@@ -127,6 +144,13 @@ export type LandingProps = {
   isSearchingCompanies: boolean;
   showCompanySuggestions: boolean;
   setShowCompanySuggestions: Dispatch<SetStateAction<boolean>>;
+  linkedProject: string;
+  setLinkedProject: (value: string) => void;
+  projects: ProjectSummary[];
+  projectFiles: ProjectFile[];
+  isLoadingProjects: boolean;
+  isLoadingProjectFiles: boolean;
+  selectProjectFile: (projectFile: ProjectFile) => Promise<boolean>;
 };
 
 export type ConversationProps = {
@@ -173,6 +197,12 @@ export type ConversationProps = {
   isSearchingCompanies: boolean;
   showCompanySuggestions: boolean;
   setShowCompanySuggestions: Dispatch<SetStateAction<boolean>>;
+  linkedProject: string;
+  setLinkedProject: (value: string) => void;
+  projects: ProjectSummary[];
+  projectFiles: ProjectFile[];
+  isLoadingProjects: boolean;
+  isLoadingProjectFiles: boolean;
 };
 
 export type QuickActionProps = {
