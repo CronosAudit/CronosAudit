@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -16,6 +16,7 @@ import {
   ShieldCheck,
   Sparkles,
   MessageSquare,
+  X,
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -24,10 +25,12 @@ import type { LandingProps } from "./types";
 import { AuditMetadataForm } from "./audit-metadata-form";
 import { InlineMetaBadge, QuickAction } from "./chat-ui";
 
+const STORAGE_KEY = "chronos_audit_processing_metadata";
+
 export function ChatLandingView({
   message,
   setMessage,
-  file,
+  files = [],
   cnpj,
   setCnpj,
   regimeTributario,
@@ -37,7 +40,6 @@ export function ChatLandingView({
   docType,
   setDocType,
   isLoading,
-  isGeneratingReport,
   hasMessage,
   activeConversation,
   latestReport,
@@ -48,7 +50,6 @@ export function ChatLandingView({
   handleFileChange,
   handleClear,
   handleSubmit,
-  handleGenerateReport,
   companyQuery,
   setCompanyQuery,
   companySuggestions,
@@ -61,6 +62,40 @@ export function ChatLandingView({
     "Analise este documento e identifique riscos relevantes, inconsistências, pontos de atenção para auditoria e uma proposta de evidências a serem solicitadas.";
 
   const [copiedPrompt, setCopiedPrompt] = useState(false);
+  const previousConversationIdRef = useRef<string | null>(null);
+
+  const clearAuditMetadata = () => {
+    setCompanyQuery("");
+    setCompanySuggestions([]);
+    setShowCompanySuggestions(false);
+    setCnpj("");
+    setRegimeTributario("simples_nacional");
+    setAnoFiscal(String(new Date().getFullYear()));
+    setDocType("documento_contabil");
+
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(STORAGE_KEY);
+    }
+  };
+
+  useEffect(() => {
+    const currentConversationId = activeConversation?.id ?? null;
+
+    if (!currentConversationId) {
+      previousConversationIdRef.current = null;
+      return;
+    }
+
+    if (previousConversationIdRef.current === null) {
+      previousConversationIdRef.current = currentConversationId;
+      return;
+    }
+
+    if (previousConversationIdRef.current !== currentConversationId) {
+      clearAuditMetadata();
+      previousConversationIdRef.current = currentConversationId;
+    }
+  }, [activeConversation?.id]);
 
   async function handleCopyPrompt() {
     try {
@@ -78,20 +113,20 @@ export function ChatLandingView({
   return (
     <section
       id="chat"
-      className="relative flex min-h-screen w-full items-center justify-center overflow-hidden bg-transparent px-3 py-4 sm:px-4 sm:py-6 lg:px-8"
+      className="relative min-h-[100dvh] w-full overflow-x-hidden bg-transparent px-3 py-4 sm:px-4 sm:py-6 lg:px-8"
     >
       <div className="relative z-10 mx-auto flex w-full max-w-7xl flex-col">
         <div className="mb-4 flex items-center justify-between gap-3 sm:mb-6">
           <Link
             href="/dashboard"
-            className="inline-flex w-fit max-w-full items-center gap-2 rounded-full border border-white/10 bg-black/30 px-3 py-2 text-sm text-zinc-200 backdrop-blur-md transition hover:bg-black/45 hover:text-white sm:px-4"
+            className="inline-flex max-w-full items-center gap-2 rounded-full border border-white/10 bg-black/30 px-3 py-2 text-sm text-zinc-200 backdrop-blur-md transition hover:bg-black/45 hover:text-white sm:px-4"
           >
             <ArrowLeft className="size-4 shrink-0" />
             <span className="truncate">Voltar</span>
           </Link>
         </div>
 
-        <div className="overflow-hidden rounded-[24px] border border-white/10 bg-black/35 shadow-2xl shadow-black/40 backdrop-blur-2xl sm:rounded-[28px] lg:rounded-[32px]">
+        <div className="overflow-hidden rounded-3xl border border-white/10 bg-black/35 shadow-2xl shadow-black/40 backdrop-blur-2xl lg:rounded-[32px]">
           <div className="border-b border-white/10 bg-[linear-gradient(180deg,rgba(212,175,55,0.12),rgba(212,175,55,0.03))] px-4 py-5 sm:px-6 sm:py-6 lg:px-7">
             <div className="mx-auto max-w-4xl text-center">
               <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-[#d4af37]/20 bg-[#d4af37]/10 px-3 py-1 text-xs text-[#f4e7b2] sm:px-4 sm:text-sm">
@@ -127,6 +162,18 @@ export function ChatLandingView({
                   {errorMessage}
                 </div>
               )}
+
+              <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={clearAuditMetadata}
+                  className="w-full rounded-xl border border-white/10 bg-white/[0.03] text-zinc-300 hover:bg-white/10 hover:text-white sm:w-auto"
+                >
+                  <X className="mr-2 size-4" />
+                  Limpar dados da empresa
+                </Button>
+              </div>
 
               <AuditMetadataForm
                 cnpj={cnpj}
@@ -203,7 +250,7 @@ export function ChatLandingView({
                 </p>
               </div>
 
-              <div className="relative rounded-[22px] border border-white/10 bg-[#0f1012]/80 shadow-xl shadow-black/20 sm:rounded-[24px]">
+              <div className="relative rounded-[22px] border border-white/10 bg-[#0f1012]/80 shadow-xl shadow-black/20 sm:rounded-3xl">
                 <Textarea
                   ref={textareaRef}
                   value={message}
@@ -219,7 +266,7 @@ export function ChatLandingView({
                   }}
                   placeholder="Ex.: Leia este contrato e destaque riscos, cláusulas críticas e evidências necessárias..."
                   className={cn(
-                    "min-h-[72px] w-full resize-none border-none px-4 py-4",
+                    "min-h-[88px] w-full resize-none border-none px-4 py-4",
                     "bg-transparent text-sm text-white sm:px-5 sm:py-5 md:text-base",
                     "placeholder:text-zinc-500",
                     "focus-visible:ring-0 focus-visible:ring-offset-0",
@@ -227,63 +274,84 @@ export function ChatLandingView({
                   style={{ overflow: "hidden" }}
                 />
 
-                <div className="flex flex-col gap-3 border-t border-white/10 p-3 sm:p-4 lg:flex-row lg:items-center lg:justify-between">
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    className="hidden"
-                    onChange={handleFileChange}
-                  />
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  className="hidden"
+                  multiple
+                  onChange={handleFileChange}
+                />
 
-                  <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="hidden rounded-xl text-zinc-300 hover:bg-white/10 hover:text-white sm:inline-flex"
-                    >
-                      <Paperclip className="size-4" />
-                    </Button>
+                <div className="flex flex-col gap-3 border-t border-white/10 p-3 sm:p-4">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="hidden shrink-0 rounded-xl text-zinc-300 hover:bg-white/10 hover:text-white sm:inline-flex"
+                      >
+                        <Paperclip className="size-4" />
+                      </Button>
 
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="w-full justify-start rounded-xl border border-white/10 bg-white/[0.03] text-zinc-300 hover:bg-white/10 hover:text-white sm:w-auto sm:max-w-[320px]"
-                    >
-                      <FileUp className="mr-2 size-4 shrink-0" />
-                      <span className="truncate">
-                        {file ? file.name : "Enviar arquivo"}
-                      </span>
-                    </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="w-full min-w-0 justify-start rounded-xl border border-white/10 bg-white/[0.03] text-zinc-300 hover:bg-white/10 hover:text-white sm:w-auto sm:max-w-[320px]"
+                      >
+                        <FileUp className="mr-2 size-4 shrink-0" />
+                        <span className="truncate">
+                          {files.length > 0
+                            ? `${files.length} arquivo${
+                                files.length > 1 ? "s" : ""
+                              } selecionado${files.length > 1 ? "s" : ""}`
+                            : "Enviar até 5 arquivos"}
+                        </span>
+                      </Button>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:flex lg:justify-end">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={handleClear}
+                        className="w-full rounded-xl text-zinc-300 hover:bg-white/10 hover:text-white sm:w-auto"
+                      >
+                        Limpar
+                      </Button>
+
+                      <Button
+                        type="button"
+                        onClick={handleSubmit}
+                        disabled={!hasMessage || isLoading}
+                        className={cn(
+                          "w-full rounded-xl px-4 font-medium transition-all sm:w-auto",
+                          hasMessage
+                            ? "bg-[#d4af37] text-black hover:bg-[#c9a633]"
+                            : "bg-neutral-700 text-neutral-400",
+                        )}
+                      >
+                        <ArrowUpIcon className="mr-2 size-4 shrink-0" />
+                        {isLoading ? "Enviando..." : "Enviar"}
+                      </Button>
+                    </div>
                   </div>
 
-                  <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={handleClear}
-                      className="w-full rounded-xl text-zinc-300 hover:bg-white/10 hover:text-white sm:w-auto"
-                    >
-                      Limpar
-                    </Button>
-
-                    <Button
-                      type="button"
-                      onClick={handleSubmit}
-                      disabled={!hasMessage || isLoading}
-                      className={cn(
-                        "w-full rounded-xl px-4 font-medium transition-all sm:w-auto",
-                        hasMessage
-                          ? "bg-[#d4af37] text-black hover:bg-[#c9a633]"
-                          : "bg-neutral-700 text-neutral-400",
-                      )}
-                    >
-                      <ArrowUpIcon className="mr-2 size-4 shrink-0" />
-                      {isLoading ? "Enviando..." : "Enviar"}
-                    </Button>
-                  </div>
+                  {files.length > 0 && (
+                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                      {files.slice(0, 5).map((item) => (
+                        <div
+                          key={`${item.name}-${item.size}`}
+                          className="flex min-w-0 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-zinc-300"
+                        >
+                          <FileText className="size-3.5 shrink-0 text-[#f4e7b2]" />
+                          <span className="truncate">{item.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 

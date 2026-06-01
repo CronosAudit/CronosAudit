@@ -1,29 +1,34 @@
+// app/dashboard/page.tsx
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
+
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  ArrowRight,
-  BarChart3,
-  CalendarClock,
+  Archive,
   CheckCircle2,
   Clock3,
+  Edit3,
   FileBarChart2,
-  Filter,
-  FolderKanban,
+  FileDown,
+  FileText,
+  Folder,
   ListTodo,
   Loader2,
   Plus,
-  Search,
   ShieldCheck,
   Sparkles,
   TrendingUp,
   AlertTriangle,
   MoreHorizontal,
-  Folder,
+  Trash2,
+  X,
 } from "lucide-react";
+
+declare module "jspdf";
+declare module "jspdf-autotable";
 
 import { Navbar, dashboardMenuItems } from "@/components/ui/navbar";
 import { Button } from "@/components/ui/button";
@@ -47,20 +52,13 @@ type DashboardTask = {
 
 type DashboardReport = {
   id: string;
+  conversationId: string;
   name: string;
   source: string;
   createdAt: string;
   status: ReportStatus;
   progress: number;
   findings: number;
-};
-
-type ActivityItem = {
-  id: string;
-  title: string;
-  description: string;
-  time: string;
-  kind: "report" | "task" | "alert" | "success";
 };
 
 type SummaryCard = {
@@ -104,14 +102,15 @@ export default function DashboardPage() {
 
   const [search, setSearch] = React.useState("");
   const [isLoading, setIsLoading] = React.useState(true);
+  const [isSavingAction, setIsSavingAction] = React.useState(false);
   const [error, setError] = React.useState("");
+  const [successMessage, setSuccessMessage] = React.useState("");
 
   const [userName, setUserName] = React.useState("");
   const [userEmail, setUserEmail] = React.useState("");
 
   const [tasks, setTasks] = React.useState<DashboardTask[]>([]);
   const [reports, setReports] = React.useState<DashboardReport[]>([]);
-  const [activities, setActivities] = React.useState<ActivityItem[]>([]);
   const [summaryCards, setSummaryCards] =
     React.useState<SummaryCard[]>(EMPTY_SUMMARY_CARDS);
 
@@ -122,22 +121,34 @@ export default function DashboardPage() {
     { label: "Automação", value: 0 },
   ]);
 
+  const [openReportActionsId, setOpenReportActionsId] = React.useState<
+    string | null
+  >(null);
+  const [editingReport, setEditingReport] =
+    React.useState<DashboardReport | null>(null);
+  const [editingReportTitle, setEditingReportTitle] = React.useState("");
+
   const loadDashboard = React.useCallback(async () => {
     try {
       setIsLoading(true);
       setError("");
+      setSuccessMessage("");
 
       const {
-        data: { user },
-        error: authError,
-      } = await supabase.auth.getUser();
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
 
-      if (authError) throw authError;
+      if (sessionError) {
+        throw sessionError;
+      }
 
-      if (!user) {
-        setError("Usuário não autenticado.");
+      if (!session?.user) {
+        router.replace("/login");
         return;
       }
+
+      const user = session.user;
 
       const authDisplayName =
         user.user_metadata?.name ||
@@ -148,32 +159,20 @@ export default function DashboardPage() {
       setUserName(authDisplayName);
       setUserEmail(user.email ?? "");
 
-      const [
-        profileData,
-        tasksData,
-        reportsData,
-        activityData,
-        processingJobsData,
-      ] = await Promise.all([
-        loadProfile(user.id),
+      const [tasksData, reportsData, processingJobsData] = await Promise.all([
         loadTasks(user.id),
         loadReports(user.id),
-        loadActivities(user.id),
         loadProcessingJobs(user.id),
       ]);
 
-      setUserName(profileData?.full_name || authDisplayName || "usuário");
-      setUserEmail(profileData?.email || user.email || "");
+      setUserName(authDisplayName || user.email?.split("@")[0] || "usuário");
+      setUserEmail(user.email || "");
 
       const mappedTasks = tasksData.map(mapTaskRecordToDashboardTask);
       const mappedReports = reportsData.map(mapReportRecordToDashboardReport);
-      const mappedActivities = activityData.map(
-        mapActivityRecordToDashboardActivity,
-      );
 
       setTasks(mappedTasks);
       setReports(mappedReports);
-      setActivities(mappedActivities);
 
       const reportsAtivos = mappedReports.length;
 
@@ -294,25 +293,36 @@ export default function DashboardPage() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [router]);
 
   React.useEffect(() => {
     loadDashboard();
   }, [loadDashboard]);
 
-  const filteredTasks = React.useMemo(() => {
-    const term = search.toLowerCase().trim();
-    if (!term) return tasks;
+  React.useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      const target = event.target as HTMLElement | null;
 
-    return tasks.filter((task) => {
-      return (
-        task.title.toLowerCase().includes(term) ||
-        task.project.toLowerCase().includes(term) ||
-        task.status.toLowerCase().includes(term) ||
-        task.priority.toLowerCase().includes(term)
-      );
-    });
-  }, [search, tasks]);
+      if (!target?.closest("[data-report-actions]")) {
+        setOpenReportActionsId(null);
+      }
+    }
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpenReportActionsId(null);
+        setEditingReport(null);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, []);
 
   const filteredReports = React.useMemo(() => {
     const term = search.toLowerCase().trim();
@@ -327,13 +337,6 @@ export default function DashboardPage() {
     });
   }, [search, reports]);
 
-  const upcomingTasks = React.useMemo(() => {
-    return [...tasks]
-      .filter((task) => task.status !== "Concluída")
-      .sort((a, b) => parseDateForSort(a.createdAt || a.dueDate) - parseDateForSort(b.createdAt || b.dueDate))
-      .slice(0, 3);
-  }, [tasks]);
-
   const urgentIssuesCount = React.useMemo(() => {
     const lateTasks = tasks.filter((task) => task.status === "Atrasada").length;
     const failedReports = reports.filter(
@@ -347,6 +350,260 @@ export default function DashboardPage() {
     window.location.href = "/login";
   }
 
+  async function handleExportAllReportsCsv() {
+    if (!filteredReports.length) return;
+    exportReportsAsCsv(filteredReports, "visao-relatorios.csv");
+  }
+
+  async function handleExportAllReportsPdf() {
+    if (!filteredReports.length) return;
+    await exportReportsAsPdf(filteredReports, "visao-relatorios.pdf");
+  }
+
+  function handleEditReportTitle(report: DashboardReport) {
+    setEditingReport(report);
+    setEditingReportTitle(report.name);
+    setOpenReportActionsId(null);
+    setError("");
+    setSuccessMessage("");
+  }
+
+  async function handleSaveReportTitle() {
+    if (!editingReport || isSavingAction) return;
+
+    const nextTitle = editingReportTitle.trim();
+
+    if (!nextTitle) {
+      setError("Informe um título para salvar.");
+      return;
+    }
+
+    try {
+      setIsSavingAction(true);
+      setError("");
+      setSuccessMessage("");
+
+      const { error: updateError } = await supabase
+        .from("audit_conversations")
+        .update({
+          title: nextTitle,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", editingReport.conversationId);
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      setReports((current) =>
+        current.map((item) =>
+          item.conversationId === editingReport.conversationId
+            ? { ...item, name: nextTitle }
+            : item,
+        ),
+      );
+
+      setEditingReport(null);
+      setEditingReportTitle("");
+      setSuccessMessage("Título atualizado com sucesso.");
+    } catch (err) {
+      console.error(err);
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Não foi possível atualizar o título.",
+      );
+    } finally {
+      setIsSavingAction(false);
+    }
+  }
+
+  async function handleArchiveReport(report: DashboardReport) {
+    if (isSavingAction) return;
+
+    try {
+      setIsSavingAction(true);
+      setError("");
+      setSuccessMessage("");
+      setOpenReportActionsId(null);
+
+      const { error: updateError } = await supabase
+        .from("audit_conversations")
+        .update({
+          status: "archived",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", report.conversationId);
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      setReports((current) =>
+        current.filter((item) => item.conversationId !== report.conversationId),
+      );
+      setSuccessMessage("Conversa arquivada com sucesso.");
+    } catch (err) {
+      console.error(err);
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Não foi possível arquivar a conversa.",
+      );
+    } finally {
+      setIsSavingAction(false);
+    }
+  }
+
+  async function handleDeleteReport(report: DashboardReport) {
+    if (isSavingAction) return;
+
+    const confirmed = window.confirm(
+      "Tem certeza que deseja excluir esta conversa? Essa ação remove a conversa e os relatórios vinculados.",
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setIsSavingAction(true);
+      setError("");
+      setSuccessMessage("");
+      setOpenReportActionsId(null);
+
+      const { error: deleteError } = await supabase
+        .from("audit_conversations")
+        .delete()
+        .eq("id", report.conversationId);
+
+      if (deleteError) {
+        throw deleteError;
+      }
+
+      setReports((current) =>
+        current.filter((item) => item.conversationId !== report.conversationId),
+      );
+      setSuccessMessage("Conversa excluída com sucesso.");
+    } catch (err) {
+      console.error(err);
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Não foi possível excluir a conversa.",
+      );
+    } finally {
+      setIsSavingAction(false);
+    }
+  }
+
+  function handleExportSingleReportCsv(report: DashboardReport) {
+    exportReportsAsCsv([report], `conversa-${report.conversationId}-relatorio.csv`);
+    setOpenReportActionsId(null);
+  }
+
+  async function handleExportSingleReportPdf(report: DashboardReport) {
+    setOpenReportActionsId(null);
+    await exportReportsAsPdf([report], `conversa-${report.conversationId}-relatorio.pdf`);
+  }
+
+  function exportReportsAsCsv(
+    reportsToExport: DashboardReport[],
+    filename: string,
+  ) {
+    const headers = [
+      "ID do relatório",
+      "ID da conversa",
+      "Título",
+      "Status",
+      "Progresso",
+      "Achados",
+      "Criado em",
+    ];
+
+    const rows = reportsToExport.map((report) => [
+      report.id,
+      report.conversationId,
+      report.name,
+      report.status,
+      `${report.progress}%`,
+      String(report.findings ?? 0),
+      report.createdAt,
+    ]);
+
+    const csvContent = [headers, ...rows]
+      .map((row) =>
+        row
+          .map((value) => `"${String(value ?? "").replace(/"/g, '""')}"`)
+          .join(","),
+      )
+      .join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
+  }
+
+  async function exportReportsAsPdf(
+    reportsToExport: DashboardReport[],
+    filename: string,
+  ) {
+    if (!reportsToExport.length) return;
+
+    const { jsPDF } = await import("jspdf");
+    const autoTableModule = await import("jspdf-autotable");
+    const autoTable =
+      autoTableModule.default ||
+      (autoTableModule as any).autoTable ||
+      (autoTableModule as any);
+
+    const doc = new jsPDF({ unit: "pt", format: "a4" });
+    const headers = [
+      "Título",
+      "Status",
+      "Progresso",
+      "Achados",
+      "Criado em",
+    ];
+    const body = reportsToExport.map((report) => [
+      report.name,
+      report.status,
+      `${report.progress}%`,
+      String(report.findings ?? 0),
+      report.createdAt,
+    ]);
+
+    doc.setFontSize(14);
+    doc.setTextColor(212, 175, 53);
+    doc.text("Visão de Relatórios Chronos Audit", 40, 40);
+
+    autoTable(doc, {
+      startY: 70,
+      head: [headers],
+      body,
+      headStyles: {
+        fillColor: [212, 175, 53],
+        textColor: 20,
+      },
+      styles: {
+        fontSize: 9,
+        cellPadding: 6,
+        textColor: 20,
+      },
+      alternateRowStyles: {
+        fillColor: [245, 245, 245],
+      },
+      theme: "grid",
+      margin: { left: 40, right: 40, bottom: 40 },
+    });
+
+    doc.save(filename);
+  }
+
   return (
     <>
       <Navbar
@@ -358,7 +615,7 @@ export default function DashboardPage() {
         onLogout={handleLogout}
       />
 
-      <main className="bg-[#0b0b0c] text-white overflow-x-hidden">
+      <main className="overflow-x-hidden bg-[#0b0b0c] text-white">
         <section className="relative">
           <div className="absolute inset-0 -z-10 bg-[#0b0b0c]/88" />
 
@@ -371,23 +628,29 @@ export default function DashboardPage() {
             <div className="absolute bottom-[-12rem] left-1/2 h-[22rem] w-[22rem] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(166,124,82,0.12)_0%,rgba(166,124,82,0.03)_45%,transparent_75%)] blur-3xl md:h-[28rem] md:w-[28rem]" />
           </div>
 
-          <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 pb-12 pt-28 sm:px-6 md:pt-32 lg:px-8 lg:pt-36">
+          <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-3 pb-10 pt-24 sm:gap-8 sm:px-6 sm:pb-12 sm:pt-28 md:pt-32 lg:px-8 lg:pt-36">
             {error && (
               <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
                 {error}
               </div>
             )}
 
-            <section className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
-              <div className="rounded-[28px] border border-white/10 bg-[#111214]/85 p-6 shadow-2xl shadow-black/30 ring-1 ring-white/10 backdrop-blur-sm sm:p-8">
-                <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            {successMessage && (
+              <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
+                {successMessage}
+              </div>
+            )}
+
+            <section className="grid gap-5 xl:grid-cols-[1.25fr_0.75fr] xl:gap-6">
+              <div className="rounded-[24px] border border-white/10 bg-[#111214]/85 p-4 shadow-2xl shadow-black/30 ring-1 ring-white/10 backdrop-blur-sm sm:rounded-[28px] sm:p-8">
+                <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between lg:gap-6">
                   <div className="max-w-3xl">
-                    <div className="inline-flex items-center gap-2 rounded-full border border-[#d4af37]/20 bg-white/5 px-4 py-2 text-sm text-[#f4e7b2] backdrop-blur-md">
+                    <div className="inline-flex items-center gap-2 rounded-full border border-[#d4af37]/20 bg-white/5 px-3 py-2 text-xs text-[#f4e7b2] backdrop-blur-md sm:px-4 sm:text-sm">
                       <Sparkles className="size-4" />
                       Painel inteligente do Chronos Audit
                     </div>
 
-                    <h1 className="mt-5 text-3xl font-semibold leading-tight sm:text-4xl lg:text-5xl">
+                    <h1 className="mt-4 text-2xl font-semibold leading-tight sm:mt-5 sm:text-4xl lg:text-5xl">
                       Olá
                       <span className="bg-gradient-to-r from-[#f8e7a1] via-[#d4af37] to-[#b88746] bg-clip-text text-transparent">
                         {" "}
@@ -395,13 +658,13 @@ export default function DashboardPage() {
                       </span>
                     </h1>
 
-                    <p className="mt-4 max-w-2xl text-sm leading-7 text-zinc-300 sm:text-base">
+                    <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-300 sm:mt-4 sm:text-base sm:leading-7">
                       Acompanhe suas tarefas, relatórios, processamento e os
                       principais pontos de atenção da sua conta.
                     </p>
                   </div>
 
-                  <div className="flex flex-col gap-3 sm:flex-row">
+                  <div className="grid gap-2 sm:grid-cols-2 lg:flex lg:flex-col xl:flex-row">
                     <Button
                       onClick={() => router.push("/chat")}
                       className="h-11 rounded-2xl bg-[#d4af37] px-5 text-sm font-semibold text-black hover:bg-[#c9a633]"
@@ -416,12 +679,12 @@ export default function DashboardPage() {
                       className="h-11 rounded-2xl border border-white/10 px-5 text-sm text-white hover:bg-white/10 hover:text-white"
                     >
                       <Folder className="mr-2 size-4" />
-                      Documentos de Exemplo
+                      Documentos
                     </Button>
                   </div>
                 </div>
 
-                <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <div className="mt-5 grid gap-3 sm:mt-6 sm:grid-cols-2 xl:grid-cols-4">
                   {summaryCards.map((card) => {
                     const Icon = card.icon;
 
@@ -447,10 +710,10 @@ export default function DashboardPage() {
                         <p className="mt-4 text-sm text-zinc-400">
                           {card.title}
                         </p>
-                        <p className="mt-1 text-3xl font-semibold text-white">
+                        <p className="mt-1 text-2xl font-semibold text-white sm:text-3xl">
                           {isLoading ? "..." : card.value}
                         </p>
-                        <p className="mt-2 text-sm text-zinc-500">
+                        <p className="mt-2 line-clamp-2 text-xs leading-5 text-zinc-500 sm:text-sm">
                           {card.helper}
                         </p>
                       </div>
@@ -459,20 +722,20 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              <div className="rounded-[28px] border border-white/10 bg-[#111214]/85 p-6 shadow-2xl shadow-black/30 ring-1 ring-white/10 backdrop-blur-sm sm:p-8">
+              <div className="rounded-[24px] border border-white/10 bg-[#111214]/85 p-4 shadow-2xl shadow-black/30 ring-1 ring-white/10 backdrop-blur-sm sm:rounded-[28px] sm:p-8">
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="text-sm font-medium text-[#f4e7b2]">
                       Pontos de atenção
                     </p>
-                    <h2 className="mt-2 text-2xl font-semibold text-white">
+                    <h2 className="mt-2 text-xl font-semibold text-white sm:text-2xl">
                       Saúde operacional
                     </h2>
                   </div>
                   <ShieldCheck className="size-5 text-[#d4af37]" />
                 </div>
 
-                <div className="mt-6 space-y-4">
+                <div className="mt-5 space-y-4 sm:mt-6">
                   {radarPoints.map((point) => (
                     <div key={point.label} className="space-y-2">
                       <div className="flex items-center justify-between text-sm">
@@ -491,9 +754,9 @@ export default function DashboardPage() {
                   ))}
                 </div>
 
-                <div className="mt-6 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4">
+                <div className="mt-5 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 sm:mt-6">
                   <div className="flex items-start gap-3">
-                    <AlertTriangle className="mt-0.5 size-5 text-amber-300" />
+                    <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-300" />
                     <div>
                       <p className="text-sm font-semibold text-amber-100">
                         {urgentIssuesCount > 0
@@ -511,147 +774,281 @@ export default function DashboardPage() {
               </div>
             </section>
 
-           
+            <section className="rounded-[24px] border border-white/10 bg-[#111214]/85 p-3 shadow-2xl shadow-black/30 ring-1 ring-white/10 backdrop-blur-sm sm:rounded-[28px] sm:p-6">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div className="grid w-full gap-4 lg:max-w-[68%]">
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-[0.18em] text-[#f4e7b2] sm:text-sm">
+                      Relatórios criados
+                    </p>
 
-            <section className="rounded-[28px] border border-white/10 bg-[#111214]/85 p-4 shadow-2xl shadow-black/30 ring-1 ring-white/10 backdrop-blur-sm sm:p-6">
-  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-    <div>
-      <p className="text-sm font-medium text-[#f4e7b2]">Relatórios criados</p>
-      <h2 className="mt-2 text-xl font-semibold text-white sm:text-2xl">
-        Processamento e resultados
-      </h2>
-    </div>
+                    <h2 className="mt-2 text-lg font-semibold text-white sm:text-2xl">
+                      Processamento e resultados
+                    </h2>
 
-    <Button
-      type="button"
-      variant="ghost"
-      disabled={isLoading || !filteredReports?.length}
-      className="h-11 w-full rounded-2xl border border-white/10 px-4 text-sm text-white hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
-    >
-      <BarChart3 className="mr-2 size-4" />
-      Exportar visão
-    </Button>
-  </div>
+                    <p className="mt-1 text-xs leading-5 text-zinc-500 sm:hidden">
+                      Use o menu de ações para editar, exportar, arquivar ou
+                      excluir uma conversa.
+                    </p>
+                  </div>
 
-  <div className="mt-6 overflow-hidden rounded-3xl border border-white/10">
-    <div className="hidden grid-cols-[1.5fr_1fr_0.9fr_0.9fr_48px] bg-white/[0.04] px-5 py-4 text-sm font-medium text-zinc-300 md:grid">
-      <div>Relatório</div>
-      <div>Origem</div>
-      <div>Status</div>
-      <div>Achados</div>
-      <div />
-    </div>
-
-    <div className="divide-y divide-white/10">
-      {isLoading ? (
-        <div className="px-5 py-8">
-          <LoadingState text="Carregando relatórios..." />
-        </div>
-      ) : Array.isArray(filteredReports) && filteredReports.length > 0 ? (
-        filteredReports.map((report) => {
-          const progress = Math.min(Math.max(Number(report.progress || 0), 0), 100)
-          const status = report.status || 'Processando'
-          const isCompleted = status === 'Concluído'
-          const isFailed = status === 'Falhou'
-
-          return (
-            <article
-              key={report.id}
-              className="grid gap-4 bg-black/10 px-4 py-5 transition hover:bg-white/[0.03] sm:px-5 md:grid-cols-[1.5fr_1fr_0.9fr_0.9fr_48px] md:items-center"
-            >
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs uppercase tracking-[0.18em] text-zinc-500">
-                    {String(report.id || '').slice(0, 8) || 'sem-id'}
-                  </span>
-                  <ReportStatusBadge label={status} />
+                  <input
+                    type="text"
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder="Buscar relatório"
+                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/80 px-4 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-[#d4af37] focus:ring-2 focus:ring-[#d4af37]/20"
+                  />
                 </div>
 
-                <p className="mt-2 truncate text-sm font-semibold text-white sm:text-base">
-                  {report.name || 'Relatório sem nome'}
-                </p>
+                <div className="grid w-full grid-cols-2 gap-2 lg:w-auto">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    disabled={isLoading || isSavingAction || !filteredReports?.length}
+                    onClick={handleExportAllReportsCsv}
+                    className="h-10 w-full rounded-2xl border border-white/10 px-3 text-xs text-white hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-50 sm:h-11 sm:px-4 sm:text-sm"
+                  >
+                    <FileDown className="mr-2 size-4" />
+                    <span className="sm:hidden">CSV</span>
+                    <span className="hidden sm:inline">Exportar CSV</span>
+                  </Button>
 
-                <p className="mt-1 text-sm text-zinc-500">
-                  Criado em {report.createdAt || 'data não informada'}
-                </p>
-
-                <div className="mt-3 max-w-sm space-y-2">
-                  <div className="flex items-center justify-between text-xs text-zinc-400">
-                    <span>Progresso</span>
-                    <span>{progress}%</span>
-                  </div>
-
-                  <div className="h-2 overflow-hidden rounded-full bg-white/10">
-                    <div
-                      className="h-full rounded-full bg-gradient-to-r from-[#f8e7a1] via-[#d4af37] to-[#b88746] transition-all duration-500"
-                      style={{ width: `${progress}%` }}
-                    />
-                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    disabled={isLoading || isSavingAction || !filteredReports?.length}
+                    onClick={handleExportAllReportsPdf}
+                    className="h-10 w-full rounded-2xl border border-white/10 px-3 text-xs text-white hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-50 sm:h-11 sm:px-4 sm:text-sm"
+                  >
+                    <FileText className="mr-2 size-4" />
+                    <span className="sm:hidden">PDF</span>
+                    <span className="hidden sm:inline">Exportar PDF</span>
+                  </Button>
                 </div>
               </div>
 
-              <div className="text-sm text-zinc-300 md:truncate">
-                <span className="mb-1 block text-xs text-zinc-500 md:hidden">Origem</span>
-                {report.source || 'Não informado'}
-              </div>
+              <div className="mt-5 overflow-hidden rounded-3xl border border-white/10">
+                <div className="overflow-x-auto">
+                  <div className="hidden grid-cols-[1.5fr_0.9fr_0.9fr_48px] bg-white/[0.04] px-5 py-4 text-sm font-medium text-zinc-300 md:grid">
+                    <div>Relatório</div>
+                    <div>Status</div>
+                    <div>Achados</div>
+                    <div />
+                  </div>
 
-              <div>
-                <span className="mb-1 block text-xs text-zinc-500 md:hidden">Status</span>
-                <p className="text-sm text-white">{status}</p>
-                <p className="mt-1 text-xs text-zinc-500">
-                  {isCompleted
-                    ? 'Disponível para revisão'
-                    : isFailed
-                      ? 'Requer nova tentativa'
-                      : 'Aguardando conclusão'}
-                </p>
-              </div>
+                  <div className="divide-y divide-white/10 max-h-[42rem] overflow-y-auto">
+                    {isLoading ? (
+                    <div className="px-4 py-6 sm:px-5 sm:py-8">
+                      <LoadingState text="Carregando relatórios..." />
+                    </div>
+                  ) : Array.isArray(filteredReports) &&
+                    filteredReports.length > 0 ? (
+                    filteredReports.map((report) => {
+                      const progress = Math.min(
+                        Math.max(Number(report.progress || 0), 0),
+                        100,
+                      );
+                      const status = report.status || "Processando";
+                      const isCompleted = status === "Concluído";
+                      const isFailed = status === "Falhou";
 
-              <div className="text-sm font-medium text-white">
-                <span className="mb-1 block text-xs font-normal text-zinc-500 md:hidden">
-                  Achados
-                </span>
-                {Number(report.findings || 0)} apontamentos
-              </div>
+                      return (
+                        <article
+                          key={report.id}
+                          className="relative grid gap-3 bg-black/10 px-3 py-4 transition hover:bg-white/[0.03] sm:px-5 md:grid-cols-[1.5fr_0.9fr_0.9fr_48px] md:items-center md:gap-4"
+                        >
+                          <div className="min-w-0">
+                            <div className="flex items-start justify-between gap-3 md:block">
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="text-[10px] uppercase tracking-[0.18em] text-zinc-500 sm:text-xs">
+                                    {String(report.conversationId || report.id || "").slice(0, 8) ||
+                                      "sem-id"}
+                                  </span>
+                                  <ReportStatusBadge label={status} />
+                                </div>
 
-              <button
-                type="button"
-                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 text-zinc-300 transition hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-[#d4af37]/60"
-                aria-label={`Mais ações do relatório ${report.name || ''}`}
-              >
-                <MoreHorizontal className="size-4" />
-              </button>
-            </article>
-          )
-        })
-      ) : (
-        <div className="px-5 py-8">
-          <EmptyState text="Nenhum relatório encontrado para este usuário." />
-        </div>
-      )}
-    </div>
-  </div>
-</section>
+                                <p className="mt-2 line-clamp-2 text-sm font-semibold leading-5 text-white sm:text-base md:truncate">
+                                  {report.name || "Relatório sem nome"}
+                                </p>
+                              </div>
+
+                              <div
+                                className="shrink-0 md:hidden"
+                                data-report-actions
+                              >
+                                <ReportActionsMenu
+                                  report={report}
+                                  isOpen={openReportActionsId === report.id}
+                                  disabled={isSavingAction}
+                                  onToggle={() =>
+                                    setOpenReportActionsId((current) =>
+                                      current === report.id ? null : report.id,
+                                    )
+                                  }
+                                  onEdit={() => handleEditReportTitle(report)}
+                                  onArchive={() => handleArchiveReport(report)}
+                                  onDelete={() => handleDeleteReport(report)}
+                                  onExportCsv={() =>
+                                    handleExportSingleReportCsv(report)
+                                  }
+                                  onExportPdf={() =>
+                                    handleExportSingleReportPdf(report)
+                                  }
+                                />
+                              </div>
+                            </div>
+
+                            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-zinc-500 md:hidden">
+                              <span>{report.createdAt || "Sem data"}</span>
+                              <span className="h-1 w-1 rounded-full bg-zinc-700" />
+                              <span>
+                                {Number(report.findings || 0)} apontamentos
+                              </span>
+                            </div>
+
+                            <p className="mt-1 hidden text-sm text-zinc-500 md:block">
+                              Criado em {report.createdAt || "data não informada"}
+                            </p>
+
+                            <div className="mt-3 max-w-sm space-y-2">
+                              <div className="flex items-center justify-between text-xs text-zinc-400">
+                                <span>Progresso</span>
+                                <span>{progress}%</span>
+                              </div>
+
+                              <div className="h-2 overflow-hidden rounded-full bg-white/10">
+                                <div
+                                  className="h-full rounded-full bg-gradient-to-r from-[#f8e7a1] via-[#d4af37] to-[#b88746] transition-all duration-500"
+                                  style={{ width: `${progress}%` }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="hidden md:block">
+                            <p className="text-sm text-white">{status}</p>
+                            <p className="mt-1 text-xs text-zinc-500">
+                              {isCompleted
+                                ? "Disponível para revisão"
+                                : isFailed
+                                  ? "Requer nova tentativa"
+                                  : "Aguardando conclusão"}
+                            </p>
+                          </div>
+
+                          <div className="hidden text-sm font-medium text-white md:block">
+                            {Number(report.findings || 0)} apontamentos
+                          </div>
+
+                          <div
+                            className="relative hidden md:block"
+                            data-report-actions
+                          >
+                            <ReportActionsMenu
+                              report={report}
+                              isOpen={openReportActionsId === report.id}
+                              disabled={isSavingAction}
+                              onToggle={() =>
+                                setOpenReportActionsId((current) =>
+                                  current === report.id ? null : report.id,
+                                )
+                              }
+                              onEdit={() => handleEditReportTitle(report)}
+                              onArchive={() => handleArchiveReport(report)}
+                              onDelete={() => handleDeleteReport(report)}
+                              onExportCsv={() =>
+                                handleExportSingleReportCsv(report)
+                              }
+                              onExportPdf={() =>
+                                handleExportSingleReportPdf(report)
+                              }
+                            />
+                          </div>
+                        </article>
+                      );
+                    })
+                  ) : (
+                    <div className="px-4 py-6 sm:px-5 sm:py-8">
+                      <EmptyState text="Nenhum relatório encontrado para este usuário." />
+                    </div>
+                                   )}
+                  </div>
+                </div>
+              </div>
+            </section>
           </div>
         </section>
       </main>
+
+      {editingReport && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-3 sm:items-center sm:p-4">
+          <div className="w-full max-w-2xl rounded-[24px] border border-white/10 bg-[#111214] p-4 shadow-2xl shadow-black/50 backdrop-blur-xl sm:rounded-[28px] sm:p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-[0.2em] text-[#d4af37] sm:text-sm">
+                  Editar título da conversa
+                </p>
+                <h2 className="mt-2 text-xl font-semibold text-white sm:text-2xl">
+                  Atualizar nome do relatório
+                </h2>
+              </div>
+              <button
+                type="button"
+                disabled={isSavingAction}
+                onClick={() => setEditingReport(null)}
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 text-zinc-300 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                aria-label="Fechar modal"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+
+            <div className="mt-6 space-y-4">
+              <label className="block text-sm font-medium text-zinc-300">
+                Título da conversa
+              </label>
+              <input
+                type="text"
+                value={editingReportTitle}
+                disabled={isSavingAction}
+                onChange={(event) => setEditingReportTitle(event.target.value)}
+                className="w-full rounded-3xl border border-white/10 bg-black/80 px-4 py-3 text-sm text-white outline-none transition focus:border-[#d4af37] focus:ring-2 focus:ring-[#d4af37]/20 disabled:cursor-not-allowed disabled:opacity-60"
+              />
+            </div>
+
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={isSavingAction}
+                onClick={() => setEditingReport(null)}
+                className="h-11 w-full rounded-2xl border border-white/10 px-5 text-sm text-white hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                disabled={isSavingAction}
+                onClick={handleSaveReportTitle}
+                className="h-11 w-full rounded-2xl bg-[#d4af37] px-5 text-sm font-semibold text-black hover:bg-[#c9a633] disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto"
+              >
+                {isSavingAction ? (
+                  <>
+                    <Loader2 className="mr-2 size-4 animate-spin" />
+                    Salvando...
+                  </>
+                ) : (
+                  "Salvar título"
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
-}
-
-async function loadProfile(userId: string): Promise<LooseRecord | null> {
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", userId)
-    .maybeSingle();
-
-  if (error) {
-    console.error(error);
-    return null;
-  }
-
-  return data;
 }
 
 async function loadTasks(userId: string): Promise<LooseRecord[]> {
@@ -689,37 +1086,14 @@ async function loadReports(userId: string): Promise<LooseRecord[]> {
         title,
         audit_type,
         created_by,
-        project_id
+        project_id,
+        status
       )
     `,
     )
     .eq("audit_conversations.created_by", userId)
+    .neq("audit_conversations.status", "archived")
     .order("created_at", { ascending: false });
-
-  if (error) {
-    console.error(error);
-    return [];
-  }
-
-  return data ?? [];
-}
-
-async function loadActivities(userId: string): Promise<LooseRecord[]> {
-  const { data, error } = await supabase
-    .from("audit_conversation_messages")
-    .select(
-      `
-      *,
-      audit_conversations!inner (
-        id,
-        title,
-        created_by
-      )
-    `,
-    )
-    .eq("audit_conversations.created_by", userId)
-    .order("created_at", { ascending: false })
-    .limit(6);
 
   if (error) {
     console.error(error);
@@ -737,11 +1111,13 @@ async function loadProcessingJobs(userId: string): Promise<LooseRecord[]> {
       *,
       audit_conversations!inner (
         id,
-        created_by
+        created_by,
+        status
       )
     `,
     )
     .eq("audit_conversations.created_by", userId)
+    .neq("audit_conversations.status", "archived")
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -773,14 +1149,18 @@ function mapTaskRecordToDashboardTask(row: LooseRecord): DashboardTask {
 }
 
 function mapReportRecordToDashboardReport(row: LooseRecord): DashboardReport {
-  const normalizedStatus = normalizeReportStatus(row.status);
+  const normalizedStatus = normalizeReportStatus(row);
   const findingsCount = extractFindingsCount(row.response_payload);
+  const conversationId = String(row.conversation_id || row.audit_conversations?.id || "");
 
   return {
     id: String(row.id ?? cryptoRandomId()),
+    conversationId: conversationId || String(row.id ?? cryptoRandomId()),
     name:
       row.audit_conversations?.title ||
       row.markdown_content?.slice(0, 48)?.trim() ||
+      row.response_payload?.relatorio_markdown?.slice(0, 48)?.trim() ||
+      row.report_hash ||
       "Relatório de auditoria",
     source:
       row.generator_endpoint ||
@@ -793,34 +1173,13 @@ function mapReportRecordToDashboardReport(row: LooseRecord): DashboardReport {
   };
 }
 
-function mapActivityRecordToDashboardActivity(row: LooseRecord): ActivityItem {
-  const senderType = String(row.sender_type || "").toLowerCase();
-
-  return {
-    id: String(row.id ?? cryptoRandomId()),
-    title:
-      senderType === "agent"
-        ? "Resposta da IA"
-        : senderType === "system"
-          ? "Evento do sistema"
-          : "Mensagem do usuário",
-    description: row.content || "Sem conteúdo disponível.",
-    time: formatRelativeTime(row.created_at),
-    kind:
-      senderType === "agent"
-        ? "success"
-        : senderType === "system"
-          ? "alert"
-          : "task",
-  };
-}
-
 function extractFindingsCount(payload: any): number {
   if (!payload || typeof payload !== "object") return 0;
 
   if (Array.isArray(payload.findings)) return payload.findings.length;
-  if (Array.isArray(payload.inconsistencies))
+  if (Array.isArray(payload.inconsistencies)) {
     return payload.inconsistencies.length;
+  }
   if (typeof payload.total_findings === "number") return payload.total_findings;
   if (typeof payload.findings_count === "number") return payload.findings_count;
   if (typeof payload.issues_count === "number") return payload.issues_count;
@@ -914,18 +1273,26 @@ function normalizeTaskStatus(value: string | null | undefined): TaskStatus {
   }
 }
 
-function normalizeReportStatus(value: string | null | undefined): ReportStatus {
-  const normalized = String(value || "").toLowerCase();
+function normalizeReportStatus(row: LooseRecord): ReportStatus {
+  const normalized = String(row.status || "").toLowerCase();
 
-  if (normalized.includes("processing") || normalized.includes("processando")) {
-    return "Processando";
-  }
+  const hasResult =
+    Boolean(row.result_link) ||
+    Boolean(row.storage_path) ||
+    Boolean(row.markdown_content) ||
+    Boolean(row.relatorio_markdown) ||
+    Boolean(row.response_payload?.relatorio_markdown) ||
+    Boolean(row.response_payload?.markdown_content);
 
   if (
+    hasResult ||
     normalized.includes("completed") ||
+    normalized.includes("complete") ||
     normalized.includes("concluído") ||
     normalized.includes("concluido") ||
-    normalized === "done"
+    normalized.includes("sucesso") ||
+    normalized === "done" ||
+    normalized === "success"
   ) {
     return "Concluído";
   }
@@ -933,12 +1300,29 @@ function normalizeReportStatus(value: string | null | undefined): ReportStatus {
   if (
     normalized.includes("failed") ||
     normalized.includes("error") ||
-    normalized.includes("falhou")
+    normalized.includes("falhou") ||
+    normalized.includes("erro")
   ) {
     return "Falhou";
   }
 
-  return "Gerando";
+  if (
+    normalized.includes("processing") ||
+    normalized.includes("processando") ||
+    normalized.includes("running")
+  ) {
+    return "Processando";
+  }
+
+  if (
+    normalized.includes("pending") ||
+    normalized.includes("queued") ||
+    normalized.includes("gerando")
+  ) {
+    return "Gerando";
+  }
+
+  return "Processando";
 }
 
 function clampPercentage(value: number) {
@@ -961,71 +1345,6 @@ function formatDateLabel(value: string | null | undefined) {
   }).format(date);
 }
 
-function formatRelativeTime(value: string | null | undefined) {
-  if (!value) return "agora";
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "agora";
-
-  const diffMs = Date.now() - date.getTime();
-  const minutes = Math.floor(diffMs / 1000 / 60);
-  const hours = Math.floor(minutes / 60);
-  const days = Math.floor(hours / 24);
-
-  if (minutes < 1) return "agora";
-  if (minutes < 60) return `há ${minutes} min`;
-  if (hours < 24) return `há ${hours} h`;
-  return `há ${days} d`;
-}
-
-function parseDateForSort(value: string) {
-  if (!value || value === "Sem data") return Number.MAX_SAFE_INTEGER;
-
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return Number.MAX_SAFE_INTEGER;
-
-  return parsed.getTime();
-}
-
-function StatusBadge({ label }: { label: TaskStatus }) {
-  const styles: Record<TaskStatus, string> = {
-    Pendente: "border-white/10 bg-white/5 text-zinc-300",
-    "Em andamento": "border-blue-500/20 bg-blue-500/10 text-blue-200",
-    Concluída: "border-emerald-500/20 bg-emerald-500/10 text-emerald-200",
-    Atrasada: "border-red-500/20 bg-red-500/10 text-red-200",
-  };
-
-  return (
-    <span
-      className={cn(
-        "rounded-full border px-3 py-1 text-xs font-medium",
-        styles[label],
-      )}
-    >
-      {label}
-    </span>
-  );
-}
-
-function PriorityBadge({ label }: { label: Priority }) {
-  const styles: Record<Priority, string> = {
-    Alta: "border-rose-500/20 bg-rose-500/10 text-rose-200",
-    Média: "border-amber-500/20 bg-amber-500/10 text-amber-200",
-    Baixa: "border-zinc-700 bg-zinc-800/60 text-zinc-300",
-  };
-
-  return (
-    <span
-      className={cn(
-        "rounded-full border px-3 py-1 text-xs font-medium",
-        styles[label],
-      )}
-    >
-      Prioridade {label}
-    </span>
-  );
-}
-
 function ReportStatusBadge({ label }: { label: ReportStatus }) {
   const styles: Record<ReportStatus, string> = {
     Gerando: "border-blue-500/20 bg-blue-500/10 text-blue-200",
@@ -1044,7 +1363,7 @@ function ReportStatusBadge({ label }: { label: ReportStatus }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium",
+        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium sm:px-3 sm:text-xs",
         styles[label],
       )}
     >
@@ -1054,29 +1373,137 @@ function ReportStatusBadge({ label }: { label: ReportStatus }) {
   );
 }
 
-function MiniAgendaItem({
-  title,
-  meta,
-  tone,
+function ReportActionsMenu({
+  report,
+  isOpen,
+  disabled,
+  onToggle,
+  onEdit,
+  onArchive,
+  onDelete,
+  onExportCsv,
+  onExportPdf,
 }: {
-  title: string;
-  meta: string;
-  tone: "warning" | "neutral" | "success";
+  report: DashboardReport;
+  isOpen: boolean;
+  disabled?: boolean;
+  onToggle: () => void;
+  onEdit: () => void;
+  onArchive: () => void;
+  onDelete: () => void;
+  onExportCsv: () => void;
+  onExportPdf: () => void;
 }) {
-  const dotStyles = {
-    warning: "bg-amber-400",
-    neutral: "bg-blue-400",
-    success: "bg-emerald-400",
-  };
-
   return (
-    <div className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-      <div className={cn("mt-1 size-2.5 rounded-full", dotStyles[tone])} />
-      <div>
-        <p className="text-sm font-semibold text-white">{title}</p>
-        <p className="mt-1 text-sm text-zinc-400">{meta}</p>
-      </div>
-    </div>
+    <>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={onToggle}
+        className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-[#111214]/80 text-zinc-300 transition hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-[#d4af37]/60 disabled:cursor-not-allowed disabled:opacity-50"
+        aria-label={`Mais ações do relatório ${report.name || ""}`}
+        aria-expanded={isOpen}
+      >
+        <MoreHorizontal className="size-4" />
+      </button>
+
+      {isOpen && (
+        <>
+          <button
+            type="button"
+            aria-label="Fechar menu de ações"
+            className="fixed inset-0 z-40 bg-black/45 md:hidden"
+            onClick={onToggle}
+          />
+
+          <div className="fixed inset-x-3 bottom-3 z-50 max-h-[78vh] overflow-y-auto rounded-[28px] border border-white/10 bg-[#111214]/95 p-3 shadow-2xl shadow-black/60 backdrop-blur-xl md:absolute md:inset-auto md:right-0 md:top-full md:mt-3 md:w-72">
+            <div className="mb-2 flex items-center justify-between px-2 md:hidden">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-white">Ações</p>
+                <p className="mt-0.5 truncate text-xs text-zinc-500">
+                  {report.name || "Relatório sem nome"}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={onToggle}
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-zinc-400 hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                aria-label="Fechar ações"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            <ActionButton
+              icon={Edit3}
+              label="Editar título"
+              onClick={onEdit}
+              disabled={disabled}
+            />
+            <ActionButton
+              icon={Archive}
+              label="Arquivar conversa"
+              onClick={onArchive}
+              disabled={disabled}
+            />
+            <ActionButton
+              icon={FileDown}
+              label="Exportar CSV"
+              onClick={onExportCsv}
+              disabled={disabled}
+            />
+            <ActionButton
+              icon={FileText}
+              label="Exportar PDF"
+              onClick={onExportPdf}
+              disabled={disabled}
+            />
+            <ActionButton
+              icon={Trash2}
+              label="Excluir conversa"
+              onClick={onDelete}
+              disabled={disabled}
+              danger
+            />
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
+function ActionButton({
+  icon: Icon,
+  label,
+  onClick,
+  disabled = false,
+  danger = false,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  danger?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        "flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm transition disabled:cursor-not-allowed disabled:opacity-50",
+        danger
+          ? "text-red-300 hover:bg-red-500/10"
+          : "text-white hover:bg-white/10",
+      )}
+    >
+      <Icon
+        className={cn("size-4", danger ? "text-red-400" : "text-[#d4af37]")}
+      />
+      {label}
+    </button>
   );
 }
 

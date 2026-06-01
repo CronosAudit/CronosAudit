@@ -89,6 +89,7 @@ function getReportCandidates(
     candidates.push(buildPublicReportUrl(`${hash}.pdf`, bucket));
     candidates.push(buildPublicReportUrl(`auditoria_${hash}.pdf`, bucket));
   }
+
   return [...new Set(candidates)];
 }
 
@@ -105,7 +106,7 @@ export function ChatConversationView({
   setActiveConversationId,
   message,
   setMessage,
-  file,
+  files,
   cnpj,
   setCnpj,
   regimeTributario,
@@ -148,6 +149,12 @@ export function ChatConversationView({
   );
   const [isCheckingReportUrl, setIsCheckingReportUrl] = useState(false);
   const [reportUrlNotFound, setReportUrlNotFound] = useState(false);
+  const [isDownloadingReport, setIsDownloadingReport] = useState(false);
+
+  const [showReportReadyModal, setShowReportReadyModal] = useState(false);
+  const [dismissedReportHash, setDismissedReportHash] = useState<string | null>(
+    null,
+  );
 
   const reportCandidates = useMemo(() => {
     if (!latestReport) return [];
@@ -206,6 +213,31 @@ export function ChatConversationView({
     return `${resolvedReportUrl}#toolbar=1&navpanes=0&scrollbar=1`;
   }, [resolvedReportUrl]);
 
+  useEffect(() => {
+    if (!resolvedReportUrl || !latestReport) return;
+
+    const currentHash =
+      latestReport.reportHash ||
+      latestReport.storagePath ||
+      latestReport.resultLink ||
+      resolvedReportUrl;
+
+    if (dismissedReportHash === currentHash) return;
+
+    setShowReportReadyModal(true);
+  }, [resolvedReportUrl, latestReport, dismissedReportHash]);
+
+  const handleCloseReportReadyModal = () => {
+    const currentHash =
+      latestReport?.reportHash ||
+      latestReport?.storagePath ||
+      latestReport?.resultLink ||
+      resolvedReportUrl;
+
+    setDismissedReportHash(currentHash ?? null);
+    setShowReportReadyModal(false);
+  };
+
   const handleRequestDeleteConversation = (
     conversationId: string,
     conversationTitle: string,
@@ -232,8 +264,6 @@ export function ChatConversationView({
       setIsDeletingConversation(false);
     }
   };
-
-  const [isDownloadingReport, setIsDownloadingReport] = useState(false);
 
   const handleDownloadReport = async () => {
     if (!resolvedReportUrl || !latestReport) return;
@@ -275,9 +305,7 @@ export function ChatConversationView({
 
     setMessage((prev) => {
       const current = prev.trim();
-
       if (!current) return textToInsert;
-
       return `${current}\n\n${textToInsert}`;
     });
 
@@ -288,7 +316,7 @@ export function ChatConversationView({
   };
 
   return (
-    <section className="flex min-h-screen w-full overflow-hidden bg-black">
+    <section className="flex h-[100dvh] min-h-[100dvh] w-full overflow-hidden bg-black">
       {mobileSidebarOpen && (
         <button
           type="button"
@@ -296,6 +324,93 @@ export function ChatConversationView({
           onClick={() => setMobileSidebarOpen(false)}
           className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
         />
+      )}
+
+      {showReportReadyModal && resolvedReportUrl && latestReport && (
+        <div className="fixed inset-0 z-[90] flex items-end justify-center p-3 sm:items-center sm:p-4">
+          <button
+            type="button"
+            aria-label="Fechar aviso de relatório gerado"
+            onClick={handleCloseReportReadyModal}
+            className="absolute inset-0 bg-black/75 backdrop-blur-sm"
+          />
+
+          <div className="relative z-[91] w-full max-w-md rounded-[28px] border border-emerald-400/20 bg-[#0d1110]/95 p-5 shadow-2xl shadow-black/50 ring-1 ring-white/10 backdrop-blur-2xl sm:p-6">
+            <div className="mb-4 flex items-start gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-200">
+                <FileText className="size-5" />
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <h3 className="text-lg font-semibold text-white">
+                  Relatório gerado
+                </h3>
+
+                <p className="mt-1 text-sm leading-6 text-zinc-400">
+                  Seu relatório foi gerado com sucesso. Gostaria de visualizar o
+                  resultado agora?
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleCloseReportReadyModal}
+                className="shrink-0 rounded-xl p-2 text-zinc-400 transition hover:bg-white/10 hover:text-white"
+                aria-label="Fechar"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            {latestReport.generatedAt && (
+              <div className="mb-4 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                  Gerado em
+                </p>
+                <p className="mt-1 text-sm text-emerald-100/80">
+                  {formatConversationDate(latestReport.generatedAt)} às{" "}
+                  {formatTimeLabel(latestReport.generatedAt)}
+                </p>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={handleCloseReportReadyModal}
+                className="rounded-xl border border-white/10 bg-white/[0.03] text-zinc-200 hover:bg-white/10 hover:text-white"
+              >
+                Agora não
+              </Button>
+
+              <a
+                href={resolvedReportUrl}
+                target="_blank"
+                rel="noreferrer"
+                onClick={handleCloseReportReadyModal}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--accent-amber)] px-4 py-2 text-sm font-semibold text-black transition hover:brightness-105"
+              >
+                <Eye className="size-4" />
+                Visualizar
+              </a>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleDownloadReport}
+              disabled={isDownloadingReport}
+              className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isDownloadingReport ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Download className="size-4" />
+              )}
+              {isDownloadingReport ? "Baixando..." : "Baixar relatório"}
+            </button>
+          </div>
+        </div>
       )}
 
       {conversationToDelete && (
@@ -369,74 +484,76 @@ export function ChatConversationView({
 
       <aside
         className={cn(
-          "fixed left-0 top-0 z-50 h-screen border-r border-white/10 bg-[#0b0c0f]/95 backdrop-blur-2xl transition-all duration-300 lg:static lg:z-auto lg:block",
+          "fixed left-0 top-0 z-50 h-[100dvh] border-r border-white/10 bg-[#0b0c0f]/95 backdrop-blur-2xl transition-all duration-300 lg:static lg:z-auto lg:block lg:shrink-0",
           mobileSidebarOpen
             ? "translate-x-0"
             : "-translate-x-full lg:translate-x-0",
           sidebarOpen ? "w-[310px]" : "w-[310px] lg:w-[96px]",
         )}
       >
-        <div className="flex h-full flex-col">
-          <div className="flex items-center justify-between border-b border-white/10 px-4 py-4">
-            <Link
-              href="/dashboard"
-              className={cn(
-                "min-w-0 transition-all duration-300",
-                sidebarOpen
-                  ? "flex-1"
-                  : "flex-1 lg:flex lg:items-center lg:justify-center",
-              )}
-            >
-              <div
+        <div className="flex h-full min-h-0 flex-col">
+          <div className="shrink-0 border-b border-white/10 px-4 py-4">
+            <div className="flex items-center justify-between">
+              <Link
+                href="/dashboard"
                 className={cn(
-                  "flex items-center transition-all duration-300",
-                  sidebarOpen ? "gap-3" : "justify-center",
+                  "min-w-0 transition-all duration-300",
+                  sidebarOpen
+                    ? "flex-1"
+                    : "flex-1 lg:flex lg:items-center lg:justify-center",
                 )}
               >
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#d4af37]/30 bg-gradient-to-br from-[#d4af37]/20 via-[#b88746]/10 to-transparent text-[#d4af37] shadow-lg shadow-[#d4af37]/10">
-                  <Hourglass className="size-5 shrink-0" />
-                </div>
-
                 <div
                   className={cn(
-                    "min-w-0 overflow-hidden leading-tight transition-all duration-300",
-                    !sidebarOpen && "lg:hidden",
+                    "flex items-center transition-all duration-300",
+                    sidebarOpen ? "gap-3" : "justify-center",
                   )}
                 >
-                  <p className="truncate text-sm font-semibold tracking-[0.22em] text-[#f4e7b2]">
-                    Chronos
-                  </p>
-                  <p className="text-xs uppercase tracking-[0.32em] text-zinc-400">
-                    Audit
-                  </p>
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#d4af37]/30 bg-gradient-to-br from-[#d4af37]/20 via-[#b88746]/10 to-transparent text-[#d4af37] shadow-lg shadow-[#d4af37]/10">
+                    <Hourglass className="size-5 shrink-0" />
+                  </div>
+
+                  <div
+                    className={cn(
+                      "min-w-0 overflow-hidden leading-tight transition-all duration-300",
+                      !sidebarOpen && "lg:hidden",
+                    )}
+                  >
+                    <p className="truncate text-sm font-semibold tracking-[0.22em] text-[#f4e7b2]">
+                      Chronos
+                    </p>
+                    <p className="text-xs uppercase tracking-[0.32em] text-zinc-400">
+                      Audit
+                    </p>
+                  </div>
                 </div>
+              </Link>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setSidebarOpen((prev) => !prev)}
+                  className="hidden text-zinc-300 hover:bg-white/10 hover:text-white lg:inline-flex"
+                >
+                  <PanelLeft className="size-4" />
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setMobileSidebarOpen(false)}
+                  className="text-zinc-300 hover:bg-white/10 hover:text-white lg:hidden"
+                >
+                  <X className="size-4" />
+                </Button>
               </div>
-            </Link>
-
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={() => setSidebarOpen((prev) => !prev)}
-                className="hidden text-zinc-300 hover:bg-white/10 hover:text-white lg:inline-flex"
-              >
-                <PanelLeft className="size-4" />
-              </Button>
-
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={() => setMobileSidebarOpen(false)}
-                className="text-zinc-300 hover:bg-white/10 hover:text-white lg:hidden"
-              >
-                <X className="size-4" />
-              </Button>
             </div>
           </div>
 
-          <div className="border-b border-white/10 p-4">
+          <div className="shrink-0 border-b border-white/10 p-4">
             <Button
               type="button"
               onClick={createConversation}
@@ -452,7 +569,7 @@ export function ChatConversationView({
             </Button>
           </div>
 
-          <div className="chat-scroll-y flex-1 overflow-y-auto p-3">
+          <div className="chat-scroll-y min-h-0 flex-1 overflow-y-auto p-3">
             <div className="space-y-2">
               {conversations.map((conversation) => {
                 const isActive = conversation.id === activeConversationId;
@@ -534,8 +651,8 @@ export function ChatConversationView({
         </div>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 border-b border-white/10 bg-black/30 px-3 py-3 backdrop-blur-2xl sm:px-5">
+      <div className="flex h-[100dvh] min-w-0 flex-1 flex-col overflow-hidden">
+        <header className="z-30 shrink-0 border-b border-white/10 bg-black/30 px-3 py-3 backdrop-blur-2xl sm:px-5">
           <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2 sm:gap-3">
               <Button
@@ -568,425 +685,421 @@ export function ChatConversationView({
           </div>
         </header>
 
-        <div className="chat-scroll-y flex-1 overflow-y-auto px-3 py-4 sm:px-5 sm:py-5">
-          <div className="flex w-full flex-col gap-5">
-            {errorMessage && (
-              <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-                {errorMessage}
-              </div>
+        <main className="chat-scroll-y min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-5 sm:py-5">
+          <div
+            className={cn(
+              "grid min-h-full w-full gap-5",
+              "grid-cols-1",
+              sidebarOpen
+                ? "2xl:grid-cols-[minmax(0,1fr)_360px]"
+                : "xl:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_360px]",
             )}
-
-            <div
-              className={cn(
-                "grid w-full gap-5",
-                "grid-cols-1",
-                sidebarOpen
-                  ? "2xl:grid-cols-[minmax(0,1.7fr)_320px]"
-                  : "xl:grid-cols-[minmax(0,1.9fr)_300px] 2xl:grid-cols-[minmax(0,2.2fr)_320px]",
+          >
+            <div className="flex min-h-0 min-w-0 flex-col gap-5">
+              {errorMessage && (
+                <div className="shrink-0 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                  {errorMessage}
+                </div>
               )}
-            >
-              <div className="min-w-0 space-y-5">
-                <div className="chat-panel-strong min-w-0 overflow-hidden rounded-3xl">
-                  <div className="chat-divider border-b px-4 py-4 sm:px-5">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <InlineMetaBadge
-                        icon={<MessageSquare className="size-3.5" />}
-                        label={`${messages.length} mensagens`}
-                      />
-                      <InlineMetaBadge
-                        icon={<FileText className="size-3.5" />}
-                        label={`${conversationFiles.length} arquivos`}
-                      />
-                      {resolvedReportUrl && (
-                        <InlineMetaBadge
-                          icon={<Download className="size-3.5" />}
-                          label="Relatório disponível"
-                        />
-                      )}
-                    </div>
-                  </div>
 
-                  <div className="chat-scroll-y max-h-[46vh] overflow-y-auto px-3 py-4 sm:max-h-[50vh] sm:px-5 lg:max-h-[56vh] xl:max-h-[60vh]">
-                    <div className="space-y-4">
-                      {messages.map((item) => {
-                        const itemReportLink =
-                          item.reportLink && item.reportLink.trim().length > 0
-                            ? buildPublicReportUrl(
-                                item.reportLink,
-                                latestReport?.storageBucket || REPORTS_BUCKET,
-                              )
-                            : item.reportStatus
-                              ? resolvedReportUrl
-                              : null;
-
-                        return (
-                          <div
-                            key={item.id}
-                            className={cn(
-                              "flex w-full",
-                              item.role === "user"
-                                ? "justify-end"
-                                : "justify-start",
-                            )}
-                          >
-                            <div
-                              className={cn(
-                                "max-w-[98%] rounded-3xl border px-4 py-3 sm:max-w-[94%]",
-                                !sidebarOpen && "2xl:max-w-[92%]",
-                                sidebarOpen && "xl:max-w-[88%] 2xl:max-w-[86%]",
-                                item.role === "user"
-                                  ? "border-[var(--accent-amber-border)] bg-[var(--accent-amber-soft)] text-zinc-100"
-                                  : "border-white/10 bg-white/[0.04] text-zinc-200",
-                              )}
-                            >
-                              <div className="mb-2 flex items-center justify-between gap-3">
-                                <span className="text-xs font-medium uppercase tracking-wide text-zinc-400">
-                                  {item.role === "user" ? "Você" : "Assistente"}
-                                </span>
-                                <span className="text-xs text-zinc-500">
-                                  {formatTimeLabel(item.createdAt)}
-                                </span>
-                              </div>
-
-                              <div className="whitespace-pre-wrap break-words text-sm leading-6 sm:text-[15px]">
-                                {item.content}
-                              </div>
-
-                              {(item.fileName ||
-                                itemReportLink ||
-                                item.reportStatus) && (
-                                <div className="mt-3 flex flex-wrap gap-2">
-                                  {item.fileName && (
-                                    <InlineMetaBadge
-                                      icon={<FileUp className="size-3.5" />}
-                                      label={item.fileName}
-                                    />
-                                  )}
-
-                                  {item.reportStatus && (
-                                    <StatusBadge label={item.reportStatus} />
-                                  )}
-
-                                  {itemReportLink && (
-                                    <a
-                                      href={itemReportLink}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-100 transition hover:bg-emerald-500/20"
-                                    >
-                                      <Download className="size-3.5" />
-                                      Abrir relatório
-                                    </a>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-
-                      {(isLoading || isGeneratingReport) && (
-                        <div className="flex justify-start">
-                          <div className="rounded-3xl border border-white/10 bg-white/[0.04] px-4 py-3 text-zinc-300">
-                            <div className="flex items-center gap-2 text-sm">
-                              <Loader2 className="size-4 animate-spin text-[var(--accent-amber)]" />
-                              {isGeneratingReport
-                                ? "Gerando relatório..."
-                                : "Processando solicitação..."}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      <div ref={messagesEndRef} />
-                    </div>
-                  </div>
-
-                  <div className="chat-divider border-t p-3 sm:p-4">
-                    <input
-                      type="file"
-                      ref={fileInputRef}
-                      className="hidden"
-                      onChange={handleFileChange}
+              <div className="chat-panel-strong flex min-h-[calc(100dvh-120px)] min-w-0 flex-1 flex-col overflow-hidden rounded-3xl">
+                <div className="chat-divider shrink-0 border-b px-4 py-4 sm:px-5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <InlineMetaBadge
+                      icon={<MessageSquare className="size-3.5" />}
+                      label={`${messages.length} mensagens`}
                     />
-
-                    <Textarea
-                      ref={textareaRef}
-                      value={message}
-                      onChange={(e) => {
-                        setMessage(e.target.value);
-                        adjustHeight();
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && !e.shiftKey) {
-                          e.preventDefault();
-                          handleSubmit();
-                        }
-                      }}
-                      placeholder="Digite sua análise, pedido de revisão ou envie um documento..."
-                      className={cn(
-                        "w-full resize-none rounded-2xl border border-white/10 bg-white/[0.02]",
-                        "px-4 py-3 text-sm text-white sm:px-5 md:text-base",
-                        "placeholder:text-zinc-500",
-                        "focus-visible:ring-0 focus-visible:ring-offset-0",
-                        "min-h-[72px] max-h-[140px] sm:min-h-[76px] sm:max-h-[150px]",
-                      )}
-                      style={{ overflowY: "auto", overflowX: "hidden" }}
+                    <InlineMetaBadge
+                      icon={<FileText className="size-3.5" />}
+                      label={`${conversationFiles.length} arquivos`}
                     />
-
-                    <div className="mt-3 flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.02] p-3 sm:p-4 lg:flex-row lg:items-center lg:justify-between">
-                      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          onClick={() => fileInputRef.current?.click()}
-                          className="w-full justify-start rounded-xl border border-white/10 bg-white/[0.03] text-zinc-300 hover:bg-white/10 hover:text-white sm:w-auto sm:max-w-[360px]"
-                        >
-                          <Paperclip className="mr-2 size-4" />
-                          <span className="truncate">
-                            {file ? file.name : "Enviar arquivo"}
-                          </span>
-                        </Button>
-
-                        {file && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            onClick={handleClear}
-                            className="rounded-xl text-zinc-300 hover:bg-white/10 hover:text-white"
-                          >
-                            Limpar rascunho
-                          </Button>
-                        )}
-                      </div>
-
-                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:flex lg:flex-wrap">
-                        <Button
-                          type="button"
-                          onClick={handleGenerateReport}
-                          disabled={
-                            isGeneratingReport || conversationFiles.length === 0
-                          }
-                          className="rounded-xl border border-white/10 bg-white/[0.05] text-zinc-100 hover:bg-white/10 disabled:opacity-50"
-                        >
-                          {isGeneratingReport ? (
-                            <>
-                              <Loader2 className="mr-2 size-4 animate-spin" />
-                              Gerando...
-                            </>
-                          ) : (
-                            <>
-                              <FileText className="mr-2 size-4" />
-                              Gerar relatório
-                            </>
-                          )}
-                        </Button>
-
-                        <Button
-                          type="button"
-                          onClick={handleSubmit}
-                          disabled={!hasMessage || isLoading}
-                          className={cn(
-                            "rounded-xl px-4 font-medium",
-                            hasMessage
-                              ? "bg-[var(--accent-amber)] text-black hover:brightness-105"
-                              : "bg-neutral-700 text-neutral-400",
-                          )}
-                        >
-                          <ArrowUpIcon className="mr-2 size-4" />
-                          {isLoading ? "Enviando..." : "Enviar"}
-                        </Button>
-                      </div>
-                    </div>
+                    {resolvedReportUrl && (
+                      <InlineMetaBadge
+                        icon={<Download className="size-3.5" />}
+                        label="Relatório disponível"
+                      />
+                    )}
                   </div>
                 </div>
 
-                {resolvedReportUrl && latestReport && (
-                  <div className="mt-5 overflow-hidden rounded-2xl border border-emerald-400/20 bg-black/30">
-                    <div className="flex flex-col gap-3 border-b border-emerald-400/15 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-emerald-100/80">
-                          Pré-visualização do relatório
-                        </p>
-                        <p className="mt-1 text-xs text-emerald-100/50">
-                          Visualize o PDF diretamente pela plataforma.
-                        </p>
-                      </div>
+                <div className="chat-scroll-y min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-5">
+                  <div className="space-y-4">
+                    {messages.map((item) => {
+                      const itemReportLink =
+                        item.reportLink && item.reportLink.trim().length > 0
+                          ? buildPublicReportUrl(
+                              item.reportLink,
+                              latestReport?.storageBucket || REPORTS_BUCKET,
+                            )
+                          : item.reportStatus
+                            ? resolvedReportUrl
+                            : null;
 
+                      return (
+                        <div
+                          key={item.id}
+                          className={cn(
+                            "flex w-full",
+                            item.role === "user"
+                              ? "justify-end"
+                              : "justify-start",
+                          )}
+                        >
+                          <div
+                            className={cn(
+                              "max-w-[98%] rounded-3xl border px-4 py-3 sm:max-w-[94%]",
+                              !sidebarOpen && "2xl:max-w-[92%]",
+                              sidebarOpen && "xl:max-w-[88%] 2xl:max-w-[86%]",
+                              item.role === "user"
+                                ? "border-[var(--accent-amber-border)] bg-[var(--accent-amber-soft)] text-zinc-100"
+                                : "border-white/10 bg-white/[0.04] text-zinc-200",
+                            )}
+                          >
+                            <div className="mb-2 flex items-center justify-between gap-3">
+                              <span className="text-xs font-medium uppercase tracking-wide text-zinc-400">
+                                {item.role === "user" ? "Você" : "Assistente"}
+                              </span>
+                              <span className="text-xs text-zinc-500">
+                                {formatTimeLabel(item.createdAt)}
+                              </span>
+                            </div>
+
+                            <div className="whitespace-pre-wrap break-words text-sm leading-6 sm:text-[15px]">
+                              {item.content}
+                            </div>
+
+                            {(item.fileName ||
+                              itemReportLink ||
+                              item.reportStatus) && (
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                {item.fileName && (
+                                  <InlineMetaBadge
+                                    icon={<FileUp className="size-3.5" />}
+                                    label={item.fileName}
+                                  />
+                                )}
+
+                                {item.reportStatus && (
+                                  <StatusBadge label={item.reportStatus} />
+                                )}
+
+                                {itemReportLink && (
+                                  <a
+                                    href={itemReportLink}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-100 transition hover:bg-emerald-500/20"
+                                  >
+                                    <Download className="size-3.5" />
+                                    Abrir relatório
+                                  </a>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {(isLoading || isGeneratingReport) && (
+                      <div className="flex justify-start">
+                        <div className="rounded-3xl border border-white/10 bg-white/[0.04] px-4 py-3 text-zinc-300">
+                          <div className="flex items-center gap-2 text-sm">
+                            <Loader2 className="size-4 animate-spin text-[var(--accent-amber)]" />
+                            {isGeneratingReport
+                              ? "Gerando relatório..."
+                              : "Processando solicitação..."}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    <div ref={messagesEndRef} />
+                  </div>
+                </div>
+
+                <div className="chat-divider shrink-0 border-t p-3 sm:p-4">
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    className="hidden"
+                    onChange={handleFileChange}
+                  />
+
+                  <Textarea
+                    ref={textareaRef}
+                    value={message}
+                    onChange={(e) => {
+                      setMessage(e.target.value);
+                      adjustHeight();
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSubmit();
+                      }
+                    }}
+                    placeholder="Digite sua análise, pedido de revisão ou envie um documento..."
+                    className={cn(
+                      "w-full resize-none rounded-2xl border border-white/10 bg-white/[0.02]",
+                      "px-4 py-3 text-sm text-white sm:px-5 md:text-base",
+                      "placeholder:text-zinc-500",
+                      "focus-visible:ring-0 focus-visible:ring-offset-0",
+                      "min-h-[72px] max-h-[140px] sm:min-h-[76px] sm:max-h-[150px]",
+                    )}
+                    style={{ overflowY: "auto", overflowX: "hidden" }}
+                  />
+
+                  <div className="mt-3 flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.02] p-3 sm:p-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="w-full justify-start rounded-xl border border-white/10 bg-white/[0.03] text-zinc-300 hover:bg-white/10 hover:text-white sm:w-auto sm:max-w-[360px]"
+                      >
+                        <Paperclip className="mr-2 size-4 shrink-0" />
+                        <span className="truncate">
+                          {files[0] ? files[0].name : "Enviar arquivo"}
+                        </span>
+                      </Button>
+
+                      {files.length > 0 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={handleClear}
+                          className="rounded-xl text-zinc-300 hover:bg-white/10 hover:text-white"
+                        >
+                          Limpar rascunho
+                        </Button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:flex lg:flex-wrap">
+                      <Button
+                        type="button"
+                        onClick={handleGenerateReport}
+                        disabled={
+                          isGeneratingReport || conversationFiles.length === 0
+                        }
+                        className="rounded-xl border border-white/10 bg-white/[0.05] text-zinc-100 hover:bg-white/10 disabled:opacity-50"
+                      >
+                        {isGeneratingReport ? (
+                          <>
+                            <Loader2 className="mr-2 size-4 animate-spin" />
+                            Gerando...
+                          </>
+                        ) : (
+                          <>
+                            <FileText className="mr-2 size-4" />
+                            Gerar relatório
+                          </>
+                        )}
+                      </Button>
+
+                      <Button
+                        type="button"
+                        onClick={handleSubmit}
+                        disabled={!hasMessage || isLoading}
+                        className={cn(
+                          "rounded-xl px-4 font-medium",
+                          hasMessage
+                            ? "bg-[var(--accent-amber)] text-black hover:brightness-105"
+                            : "bg-neutral-700 text-neutral-400",
+                        )}
+                      >
+                        <ArrowUpIcon className="mr-2 size-4" />
+                        {isLoading ? "Enviando..." : "Enviar"}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {resolvedReportUrl && latestReport && (
+                <div className="hidden shrink-0 overflow-hidden rounded-2xl border border-emerald-400/20 bg-black/30 lg:block">
+                  <div className="flex flex-col gap-3 border-b border-emerald-400/15 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-emerald-100/80">
+                        Pré-visualização do relatório
+                      </p>
+                      <p className="mt-1 text-xs text-emerald-100/50">
+                        Visualize o PDF diretamente pela plataforma.
+                      </p>
+                    </div>
+
+                    <a
+                      href={resolvedReportUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-xs font-semibold text-emerald-50 transition hover:bg-emerald-400/20"
+                    >
+                      <Eye className="size-4" />
+                      Abrir em nova guia
+                    </a>
+                  </div>
+
+                  <div className="h-[70dvh] min-h-[420px] w-full bg-zinc-950">
+                    <iframe
+                      src={latestReportPreviewUrl ?? resolvedReportUrl}
+                      title={`Pré-visualização do relatório ${latestReport.reportHash}`}
+                      className="h-full w-full border-0 bg-white"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <aside className="chat-scroll-y min-h-0 min-w-0 space-y-5 overflow-y-auto xl:max-h-[calc(100dvh-96px)]">
+              <div className="chat-panel rounded-3xl p-4 sm:p-5">
+                <AuditMetadataForm
+                  cnpj={cnpj}
+                  setCnpj={setCnpj}
+                  regimeTributario={regimeTributario}
+                  setRegimeTributario={setRegimeTributario}
+                  anoFiscal={anoFiscal}
+                  setAnoFiscal={setAnoFiscal}
+                  docType={docType}
+                  setDocType={setDocType}
+                  companyQuery={companyQuery}
+                  setCompanyQuery={setCompanyQuery}
+                  companySuggestions={companySuggestions}
+                  setCompanySuggestions={setCompanySuggestions}
+                  isSearchingCompanies={isSearchingCompanies}
+                  showCompanySuggestions={showCompanySuggestions}
+                  setShowCompanySuggestions={setShowCompanySuggestions}
+                  compact
+                />
+              </div>
+
+              <div className="chat-panel rounded-3xl p-4">
+                <div className="mb-3 flex items-center gap-2 text-sm text-[#f4e7b2]">
+                  <FileText className="size-4 shrink-0" />
+                  Arquivos da conversa
+                </div>
+
+                {conversationFiles.length === 0 ? (
+                  <p className="text-sm text-zinc-400">
+                    Nenhum arquivo anexado nesta conversa.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {conversationFiles.map((item) => (
+                      <div
+                        key={item.id}
+                        className="rounded-2xl border border-white/10 bg-white/[0.02] px-3 py-3"
+                      >
+                        <div className="flex items-start gap-2">
+                          <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] text-zinc-300">
+                            <FileText className="size-3" />
+                          </div>
+
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium text-white">
+                              {item.originalFileName}
+                            </p>
+
+                            <p className="mt-1 text-xs text-zinc-500">
+                              {formatConversationDate(item.createdAt)} às{" "}
+                              {formatTimeLabel(item.createdAt)}
+                            </p>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleInsertFileInChat(item.originalFileName)
+                          }
+                          className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-zinc-200 transition hover:bg-white/10 hover:text-white"
+                        >
+                          <MessageSquare className="size-3.5" />
+                          Inserir no chat
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {latestReport && (
+                <div className="rounded-3xl border border-emerald-500/20 bg-emerald-500/10 p-4">
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-white">
+                        Último relatório
+                      </p>
+                    </div>
+
+                    <StatusBadge label={latestReport.status} />
+                  </div>
+
+                  {latestReport.generatedAt && (
+                    <p className="mb-4 text-sm text-emerald-100/80">
+                      Gerado em{" "}
+                      {formatConversationDate(latestReport.generatedAt)} às{" "}
+                      {formatTimeLabel(latestReport.generatedAt)}
+                    </p>
+                  )}
+
+                  {isCheckingReportUrl ? (
+                    <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+                      <Loader2 className="mr-2 inline size-4 animate-spin" />
+                      Verificando arquivo do relatório...
+                    </div>
+                  ) : resolvedReportUrl ? (
+                    <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
                       <a
                         href={resolvedReportUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-xs font-semibold text-emerald-50 transition hover:bg-emerald-400/20"
+                        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--accent-amber)] px-4 py-2 text-sm font-semibold text-black transition hover:brightness-105"
                       >
                         <Eye className="size-4" />
-                        Abrir em nova guia
+                        Visualizar relatório
                       </a>
+
+                      <button
+                        type="button"
+                        onClick={handleDownloadReport}
+                        disabled={isDownloadingReport}
+                        className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {isDownloadingReport ? (
+                          <Loader2 className="size-4 animate-spin" />
+                        ) : (
+                          <Download className="size-4" />
+                        )}
+                        {isDownloadingReport
+                          ? "Baixando..."
+                          : "Baixar relatório"}
+                      </button>
                     </div>
-
-                    <div className="h-[520px] w-full bg-zinc-950">
-                      <iframe
-                        src={latestReportPreviewUrl ?? resolvedReportUrl}
-                        title={`Pré-visualização do relatório ${latestReport.reportHash}`}
-                        className="h-full w-full border-0 bg-white"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <aside className="min-w-0 space-y-5">
-                {" "}
-                <div className="chat-panel rounded-3xl p-4 sm:p-5">
-                  <AuditMetadataForm
-                    cnpj={cnpj}
-                    setCnpj={setCnpj}
-                    regimeTributario={regimeTributario}
-                    setRegimeTributario={setRegimeTributario}
-                    anoFiscal={anoFiscal}
-                    setAnoFiscal={setAnoFiscal}
-                    docType={docType}
-                    setDocType={setDocType}
-                    companyQuery={companyQuery}
-                    setCompanyQuery={setCompanyQuery}
-                    companySuggestions={companySuggestions}
-                    setCompanySuggestions={setCompanySuggestions}
-                    isSearchingCompanies={isSearchingCompanies}
-                    showCompanySuggestions={showCompanySuggestions}
-                    setShowCompanySuggestions={setShowCompanySuggestions}
-                    compact
-                  />
-                </div>
-                <div className="chat-panel rounded-3xl p-4">
-                  <div className="mb-3 flex items-center gap-2 text-sm text-[#f4e7b2]">
-                    <FileText className="size-4 shrink-0" />
-                    Arquivos da conversa
-                  </div>
-
-                  {conversationFiles.length === 0 ? (
-                    <p className="text-sm text-zinc-400">
-                      Nenhum arquivo anexado nesta conversa.
-                    </p>
                   ) : (
-                    <div className="space-y-2">
-                      {conversationFiles.map((item) => (
-                        <div
-                          key={item.id}
-                          className="rounded-2xl border border-white/10 bg-white/[0.02] px-3 py-3"
-                        >
-                          <div className="flex items-start gap-2">
-                            <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] text-zinc-300">
-                              <FileText className="size-3" />
-                            </div>
-
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate text-sm font-medium text-white">
-                                {item.originalFileName}
-                              </p>
-
-                              <p className="mt-1 text-xs text-zinc-500">
-                                {formatConversationDate(item.createdAt)} às{" "}
-                                {formatTimeLabel(item.createdAt)}
-                              </p>
-                            </div>
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleInsertFileInChat(item.originalFileName)
-                            }
-                            className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-zinc-200 transition hover:bg-white/10 hover:text-white"
-                          >
-                            <MessageSquare className="size-3.5" />
-                            Inserir no chat
-                          </button>
-                        </div>
-                      ))}
+                    <div className="rounded-2xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+                      {reportUrlNotFound ? (
+                        <>
+                          Não foi possível localizar o arquivo do relatório no
+                          bucket <strong>{REPORTS_BUCKET}</strong>. Verifique se
+                          o backend salvou o PDF e se o campo{" "}
+                          <strong>storage_path</strong>,{" "}
+                          <strong>result_link</strong> ou{" "}
+                          <strong>report_hash</strong> possui o caminho correto.
+                        </>
+                      ) : (
+                        <>
+                          Não foi possível montar o link do relatório no bucket{" "}
+                          <strong>{REPORTS_BUCKET}</strong>.
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
-                {latestReport && (
-                  <div className="rounded-3xl border border-emerald-500/20 bg-emerald-500/10 p-4">
-                    <div className="mb-4 flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold text-white">
-                          Último relatório
-                        </p>
-                      </div>
-
-                      <StatusBadge label={latestReport.status} />
-                    </div>
-
-                    {latestReport.generatedAt && (
-                      <p className="mb-4 text-sm text-emerald-100/80">
-                        Gerado em{" "}
-                        {formatConversationDate(latestReport.generatedAt)} às{" "}
-                        {formatTimeLabel(latestReport.generatedAt)}
-                      </p>
-                    )}
-
-                    {isCheckingReportUrl ? (
-                      <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
-                        <Loader2 className="mr-2 inline size-4 animate-spin" />
-                        Verificando arquivo do relatório...
-                      </div>
-                    ) : resolvedReportUrl ? (
-                      <>
-                        <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                          <a
-                            href={resolvedReportUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--accent-amber)] px-4 py-2 text-sm font-semibold text-black transition hover:brightness-105"
-                          >
-                            <Eye className="size-4" />
-                            Visualizar relatório
-                          </a>
-
-                          <button
-                            type="button"
-                            onClick={handleDownloadReport}
-                            disabled={isDownloadingReport}
-                            className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            {isDownloadingReport ? (
-                              <Loader2 className="size-4 animate-spin" />
-                            ) : (
-                              <Download className="size-4" />
-                            )}
-                            {isDownloadingReport
-                              ? "Baixando..."
-                              : "Baixar relatório"}
-                          </button>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="rounded-2xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
-                        {reportUrlNotFound ? (
-                          <>
-                            Não foi possível localizar o arquivo do relatório no
-                            bucket <strong>{REPORTS_BUCKET}</strong>. Verifique
-                            se o backend salvou o PDF e se o campo{" "}
-                            <strong>storage_path</strong>,{" "}
-                            <strong>result_link</strong> ou{" "}
-                            <strong>report_hash</strong>
-                            caminho correto.
-                          </>
-                        ) : (
-                          <>
-                            Não foi possível montar o link do relatório no
-                            bucket <strong>{REPORTS_BUCKET}</strong>.
-                          </>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </aside>
-            </div>
+              )}
+            </aside>
           </div>
-        </div>
+        </main>
       </div>
     </section>
   );

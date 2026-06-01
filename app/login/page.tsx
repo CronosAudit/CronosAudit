@@ -33,8 +33,6 @@ export default function LoginPage() {
   const [success, setSuccess] = React.useState("")
 
   React.useEffect(() => {
-    if (typeof window === "undefined") return
-
     const savedEmail = localStorage.getItem("chronos_remember_email")
 
     if (savedEmail) {
@@ -43,56 +41,57 @@ export default function LoginPage() {
     }
   }, [])
 
+  const disabled = isLoading || isGoogleLoading
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
+
+    if (disabled) return
+
     setError("")
     setSuccess("")
 
-    const cleanEmail = email.trim()
+    const cleanEmail = email.trim().toLowerCase()
+    const cleanPassword = password.trim()
 
-    if (!cleanEmail || !password.trim()) {
-      setError("Preencha seu e-mail e senha.")
+    if (!cleanEmail) {
+      setError("Informe seu e-mail.")
+      return
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      setError("Informe um e-mail válido.")
+      return
+    }
+
+    if (!cleanPassword) {
+      setError("Informe sua senha.")
       return
     }
 
     try {
       setIsLoading(true)
 
-      await signInWithEmail(cleanEmail, password)
+      await signInWithEmail(cleanEmail, cleanPassword)
 
-      if (typeof window !== "undefined") {
-        if (rememberMe) {
-          localStorage.setItem("chronos_remember_email", cleanEmail)
-        } else {
-          localStorage.removeItem("chronos_remember_email")
-        }
+      if (rememberMe) {
+        localStorage.setItem("chronos_remember_email", cleanEmail)
+      } else {
+        localStorage.removeItem("chronos_remember_email")
       }
 
       setSuccess("Login realizado com sucesso. Redirecionando...")
       router.push("/dashboard")
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Não foi possível entrar."
+      const message =
+        err instanceof Error ? err.message : "Não foi possível entrar."
+
       setError(traduzirErroAuth(message))
     } finally {
       setIsLoading(false)
     }
   }
 
-  async function handleGoogleLogin() {
-    setError("")
-    setSuccess("")
-
-    try {
-      setIsGoogleLoading(true)
-      await signInWithGoogle()
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Não foi possível entrar com Google."
-      setError(traduzirErroAuth(message))
-      setIsGoogleLoading(false)
-    }
-  }
-
-  const disabled = isLoading || isGoogleLoading
 
   return (
     <>
@@ -102,7 +101,10 @@ export default function LoginPage() {
         <section className="relative min-h-screen">
           <div className="absolute inset-0 -z-10 bg-[#0b0b0c]" />
 
-          <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
+          >
             <div className="absolute left-[-9rem] top-[-9rem] h-[24rem] w-[24rem] rounded-full bg-[radial-gradient(circle,rgba(212,175,55,0.18)_0%,rgba(212,175,55,0.06)_38%,transparent_72%)] blur-3xl sm:h-[34rem] sm:w-[34rem]" />
             <div className="absolute right-[-12rem] top-[15rem] h-[22rem] w-[22rem] rounded-full bg-[radial-gradient(circle,rgba(184,135,70,0.16)_0%,rgba(184,135,70,0.05)_42%,transparent_74%)] blur-3xl sm:h-[32rem] sm:w-[32rem]" />
             <div className="absolute bottom-[-14rem] left-1/2 h-[26rem] w-[26rem] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(244,231,178,0.08)_0%,rgba(244,231,178,0.03)_45%,transparent_75%)] blur-3xl" />
@@ -198,9 +200,15 @@ export default function LoginPage() {
                           onClick={() => setShowPassword((prev) => !prev)}
                           disabled={disabled}
                           className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 transition hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
-                          aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                          aria-label={
+                            showPassword ? "Ocultar senha" : "Mostrar senha"
+                          }
                         >
-                          {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                          {showPassword ? (
+                            <EyeOff className="size-4" />
+                          ) : (
+                            <Eye className="size-4" />
+                          )}
                         </button>
                       </div>
                     </Field>
@@ -262,49 +270,6 @@ export default function LoginPage() {
                     </Button>
                   </form>
 
-                  <div className="my-6 flex items-center gap-3">
-                    <div className="h-px flex-1 bg-white/10" />
-                    <span className="text-xs uppercase tracking-[0.22em] text-zinc-500">
-                      ou
-                    </span>
-                    <div className="h-px flex-1 bg-white/10" />
-                  </div>
-
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleGoogleLogin}
-                    disabled={disabled}
-                    className="h-12 w-full rounded-2xl border-white/10 bg-white/[0.04] text-sm font-semibold text-white hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {isGoogleLoading ? (
-                      <span className="inline-flex items-center gap-2">
-                        <Loader2 className="size-4 animate-spin" />
-                        Conectando...
-                      </span>
-                    ) : (
-                      "Entrar com Google"
-                    )}
-                  </Button>
-
-                  <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.035] p-4">
-                    <div className="flex items-start gap-3">
-                      <div className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-xl border border-[#d4af37]/20 bg-[#d4af37]/10">
-                        <ShieldCheck className="size-4 text-[#d4af37]" />
-                      </div>
-
-                      <div>
-                        <p className="text-sm font-semibold text-white">
-                          Ambiente protegido
-                        </p>
-                        <p className="mt-1 text-sm leading-6 text-zinc-400">
-                          Sua experiência combina clareza operacional, segurança
-                          e governança em todos os dispositivos.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
                   <p className="mt-6 text-center text-sm text-zinc-400">
                     Ainda não tem conta?{" "}
                     <Link
@@ -335,18 +300,34 @@ function traduzirErroAuth(message: string) {
   }
 
   if (normalized.includes("email not confirmed")) {
-    return "Confirme seu e-mail antes de entrar."
+    return "Seu e-mail ainda não foi confirmado. Verifique sua caixa de entrada."
   }
 
-  if (normalized.includes("too many requests")) {
-    return "Muitas tentativas. Tente novamente em alguns minutos."
+  if (
+    normalized.includes("too many requests") ||
+    normalized.includes("rate limit") ||
+    normalized.includes("rate")
+  ) {
+    return "Muitas tentativas de login foram feitas. Aguarde alguns minutos antes de tentar novamente."
   }
 
-  if (normalized.includes("network")) {
-    return "Erro de conexão. Verifique sua internet e tente novamente."
+  if (
+    normalized.includes("failed to fetch") ||
+    normalized.includes("network") ||
+    normalized.includes("fetch")
+  ) {
+    return "Não foi possível conectar ao servidor. Verifique sua internet e tente novamente."
   }
 
-  return message
+  if (normalized.includes("email")) {
+    return "Verifique o e-mail informado."
+  }
+
+  if (normalized.includes("password")) {
+    return "Verifique a senha informada."
+  }
+
+  return "Não foi possível entrar. Verifique seus dados e tente novamente."
 }
 
 function Field({

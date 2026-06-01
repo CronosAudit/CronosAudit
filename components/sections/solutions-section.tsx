@@ -1,7 +1,9 @@
-"use client"
+// components/sections/solutions-section.tsx
+/* eslint-disable @typescript-eslint/no-explicit-any */
+"use client";
 
-import React from "react"
-import Link from "next/link"
+import React from "react";
+import Link from "next/link";
 import {
   ArrowRight,
   ChevronRight,
@@ -16,12 +18,17 @@ import {
   Lock,
   BarChart3,
   Sparkles,
-} from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { AnimatedGroup } from "@/components/ui/animated-group"
-import { BackgroundPaths } from "@/components/ui/background-paths"
-import { Navbar } from "@/components/ui/navbar"
-import type { Variants } from "framer-motion"
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { AnimatedGroup } from "@/components/ui/animated-group";
+import { BackgroundPaths } from "@/components/ui/background-paths";
+import {
+  Navbar,
+  defaultMenuItems,
+  dashboardMenuItems,
+} from "@/components/ui/navbar";
+import { supabase } from "@/lib/supabase";
+import type { Variants } from "framer-motion";
 
 const transitionVariants: { container?: Variants; item: Variants } = {
   item: {
@@ -41,7 +48,7 @@ const transitionVariants: { container?: Variants; item: Variants } = {
       },
     },
   },
-}
+};
 
 const solutions = [
   {
@@ -74,7 +81,7 @@ const solutions = [
     title: "Base centralizada de conhecimento",
     text: "Consolide critérios, políticas, orientações técnicas e referências internas em uma experiência mais rápida de consulta e apoio.",
   },
-]
+];
 
 const resources = [
   {
@@ -89,7 +96,7 @@ const resources = [
     title: "Revisão mais eficiente",
     text: "Melhore a visualização do racional, dos pontos de atenção e da consistência entre evidência, teste realizado e conclusão.",
   },
-]
+];
 
 const governanceItems = [
   {
@@ -107,12 +114,105 @@ const governanceItems = [
     title: "Controle e confiabilidade",
     text: "Estruturas para rastrear decisões, apoiar revisão de qualidade e reduzir riscos de uso inadequado da tecnologia.",
   },
-]
+];
+
+function getUserDisplayData(user: any) {
+  const email = user?.email || "";
+
+  const name =
+    user?.user_metadata?.name ||
+    user?.user_metadata?.full_name ||
+    user?.user_metadata?.display_name ||
+    email.split("@")[0] ||
+    "Usuário";
+
+  return {
+    name,
+    email,
+  };
+}
 
 export function SolutionsSection() {
+  const [isAuthenticated, setIsAuthenticated] = React.useState(false);
+  const [userName, setUserName] = React.useState("");
+  const [userEmail, setUserEmail] = React.useState("");
+  const [isAuthReady, setIsAuthReady] = React.useState(false);
+
+  React.useEffect(() => {
+    let mounted = true;
+
+    async function loadUser() {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const user = session?.user;
+
+      if (!mounted) return;
+
+      if (!user) {
+        setIsAuthenticated(false);
+        setUserName("");
+        setUserEmail("");
+        setIsAuthReady(true);
+        return;
+      }
+
+      const { name, email } = getUserDisplayData(user);
+
+      setIsAuthenticated(true);
+      setUserName(name);
+      setUserEmail(email);
+      setIsAuthReady(true);
+    }
+
+    loadUser();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      const user = session?.user;
+
+      if (!user) {
+        setIsAuthenticated(false);
+        setUserName("");
+        setUserEmail("");
+        setIsAuthReady(true);
+        return;
+      }
+
+      const { name, email } = getUserDisplayData(user);
+
+      setIsAuthenticated(true);
+      setUserName(name);
+      setUserEmail(email);
+      setIsAuthReady(true);
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  const primaryCtaHref = isAuthenticated ? "/dashboard" : "/signup";
+  const primaryCtaLabel = isAuthenticated
+    ? "Ir para dashboard"
+    : "Começar agora";
+
+  const secondaryCtaHref = isAuthenticated ? "/chat" : "/login";
+  const secondaryCtaLabel = isAuthenticated ? "Explorar o chat" : "Entrar";
+
   return (
     <>
-      <Navbar />
+      <Navbar
+        menuItems={isAuthenticated ? dashboardMenuItems : defaultMenuItems}
+        showAuthButtons={isAuthReady && !isAuthenticated}
+        showContactButtonMobile={isAuthReady && !isAuthenticated}
+        showUserMenu={isAuthReady && isAuthenticated}
+        userName={userName}
+        userEmail={userEmail}
+      />
 
       <main className="overflow-x-hidden bg-[#0b0b0c] text-white">
         <section className="relative">
@@ -194,7 +294,7 @@ export function SolutionsSection() {
                       size="lg"
                       className="h-12 w-full rounded-[14px] bg-[#d4af37] px-6 text-sm font-semibold text-black hover:bg-[#c9a633] sm:w-auto sm:text-base"
                     >
-                      <Link href="/signup">Começar agora</Link>
+                      <Link href={primaryCtaHref}>{primaryCtaLabel}</Link>
                     </Button>
                   </div>
 
@@ -204,7 +304,7 @@ export function SolutionsSection() {
                     variant="ghost"
                     className="h-12 rounded-[14px] border border-white/10 px-6 text-sm text-white hover:bg-white/10 hover:text-white sm:text-base"
                   >
-                    <Link href="/chat">Explorar o chat</Link>
+                    <Link href={secondaryCtaHref}>{secondaryCtaLabel}</Link>
                   </Button>
                 </AnimatedGroup>
 
@@ -459,7 +559,7 @@ export function SolutionsSection() {
                     size="lg"
                     className="bg-[#d4af37] text-black hover:bg-[#c9a633]"
                   >
-                    <Link href="/signup">Inscreva-se</Link>
+                    <Link href={primaryCtaHref}>{primaryCtaLabel}</Link>
                   </Button>
 
                   <Button
@@ -468,7 +568,7 @@ export function SolutionsSection() {
                     variant="ghost"
                     className="border border-white/10 text-white hover:bg-white/10 hover:text-white"
                   >
-                    <Link href="/login">Entrar</Link>
+                    <Link href={secondaryCtaHref}>{secondaryCtaLabel}</Link>
                   </Button>
                 </div>
               </div>
@@ -477,7 +577,7 @@ export function SolutionsSection() {
         </section>
       </main>
     </>
-  )
+  );
 }
 
 function FeaturePill({
@@ -485,9 +585,9 @@ function FeaturePill({
   title,
   text,
 }: {
-  icon: React.ReactNode
-  title: string
-  text: string
+  icon: React.ReactNode;
+  title: string;
+  text: string;
 }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-left backdrop-blur-sm">
@@ -499,7 +599,7 @@ function FeaturePill({
       </div>
       <p className="text-sm leading-6 text-zinc-300">{text}</p>
     </div>
-  )
+  );
 }
 
 function SolutionCard({
@@ -507,9 +607,9 @@ function SolutionCard({
   title,
   text,
 }: {
-  icon: React.ReactNode
-  title: string
-  text: string
+  icon: React.ReactNode;
+  title: string;
+  text: string;
 }) {
   return (
     <div className="group rounded-[24px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] p-5 transition-all duration-300 hover:-translate-y-1 hover:border-[#d4af37]/30 hover:bg-[linear-gradient(180deg,rgba(212,175,55,0.08),rgba(255,255,255,0.03))]">
@@ -525,7 +625,7 @@ function SolutionCard({
         <ChevronRight className="size-4" />
       </div>
     </div>
-  )
+  );
 }
 
 function DashboardCard({
@@ -533,9 +633,9 @@ function DashboardCard({
   value,
   description,
 }: {
-  title: string
-  value: string
-  description: string
+  title: string;
+  value: string;
+  description: string;
 }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
@@ -545,46 +645,28 @@ function DashboardCard({
       </p>
       <p className="mt-1 text-sm text-[#f4e7b2]">{description}</p>
     </div>
-  )
+  );
 }
 
-function TimelineItem({
-  title,
-  text,
-}: {
-  title: string
-  text: string
-}) {
+function TimelineItem({ title, text }: { title: string; text: string }) {
   return (
     <div className="rounded-xl border border-white/10 bg-black/20 p-3">
       <p className="text-sm font-semibold text-white">{title}</p>
       <p className="mt-1 text-sm leading-6 text-zinc-300">{text}</p>
     </div>
-  )
+  );
 }
 
-function SideInfoCard({
-  title,
-  text,
-}: {
-  title: string
-  text: string
-}) {
+function SideInfoCard({ title, text }: { title: string; text: string }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
       <p className="text-sm font-semibold text-[#f4e7b2]">{title}</p>
       <p className="mt-2 text-sm leading-6 text-zinc-300">{text}</p>
     </div>
-  )
+  );
 }
 
-function ResourceRow({
-  title,
-  text,
-}: {
-  title: string
-  text: string
-}) {
+function ResourceRow({ title, text }: { title: string; text: string }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
       <div className="flex items-start gap-4">
@@ -598,16 +680,10 @@ function ResourceRow({
         </div>
       </div>
     </div>
-  )
+  );
 }
 
-function MiniStat({
-  title,
-  value,
-}: {
-  title: string
-  value: string
-}) {
+function MiniStat({ title, value }: { title: string; value: string }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-center sm:p-5">
       <p className="text-sm text-zinc-400">{title}</p>
@@ -615,5 +691,5 @@ function MiniStat({
         {value}
       </p>
     </div>
-  )
+  );
 }

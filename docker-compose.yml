@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cronos-audit
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+      - NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY}
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      - API_KEY_OPEN_AI=${API_KEY_OPEN_AI}
+      - CHRONOS_REPORT_API_URL=${CHRONOS_REPORT_API_URL}
+      - CHRONOS_UPLOAD_API_URL=${CHRONOS_UPLOAD_API_URL}
+      - CNPJA_API_KEY=${CNPJA_API_KEY}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - cronos-network
+
+  nginx:
+    image: nginx:alpine
+    container_name: cronos-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - app
+    networks:
+      - cronos-network
+    restart: unless-stopped
+
+networks:
+  cronos-network:
+    driver: bridge

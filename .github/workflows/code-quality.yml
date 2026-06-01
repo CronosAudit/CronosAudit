@@ -1,0 +1,75 @@
+name: Code Quality Analysis
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  quality-check:
+    name: Code Quality Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run ESLint with detailed report
+        run: npm run lint -- --format json --output-file eslint-report.json
+        continue-on-error: true
+      
+      - name: Upload ESLint report
+        uses: actions/upload-artifact@v3
+        with:
+          name: eslint-report
+          path: eslint-report.json
+      
+      - name: Check for console.log statements (development code)
+        run: |
+          if grep -r "console\.\(log\|warn\|debug\)" app/ lib/ contexts/ components/ --include="*.ts" --include="*.tsx" | grep -v "console.error" > /dev/null; then
+            echo "⚠️ Warning: Found console statements. Clean these up before production."
+            grep -r "console\.\(log\|warn\|debug\)" app/ lib/ contexts/ components/ --include="*.ts" --include="*.tsx" | grep -v "console.error" || true
+          fi
+        continue-on-error: true
+      
+      - name: Check bundle size (Next.js)
+        run: |
+          echo "Checking Next.js build output..."
+          npm run build 2>&1 | grep -E "Route|Size|First Load" || true
+
+  dependency-check:
+    name: Dependency Vulnerabilities
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Audit dependencies
+        run: npm audit
+        continue-on-error: true
+      
+      - name: Check outdated packages
+        run: npm outdated
+        continue-on-error: true

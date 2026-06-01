@@ -1,3 +1,4 @@
+// app/signup/page.tsx
 "use client"
 
 import Link from "next/link"
@@ -14,9 +15,8 @@ import {
 import * as React from "react"
 
 import { Navbar } from "@/components/ui/navbar"
-import { BackgroundPaths } from "@/components/ui/background-paths"
 import { Button } from "@/components/ui/button"
-import { signInWithGoogle, signUpWithEmail } from "@/lib/auth"
+import { signUpWithEmail } from "@/lib/auth"
 
 export default function SignupPage() {
   const router = useRouter()
@@ -31,7 +31,6 @@ export default function SignupPage() {
   const [acceptedTerms, setAcceptedTerms] = React.useState(false)
 
   const [isLoading, setIsLoading] = React.useState(false)
-  const [isGoogleLoading, setIsGoogleLoading] = React.useState(false)
   const [error, setError] = React.useState("")
   const [success, setSuccess] = React.useState("")
 
@@ -50,16 +49,44 @@ export default function SignupPage() {
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
+
+    if (isLoading) return
+
     setError("")
     setSuccess("")
 
-    if (!name.trim() || !email.trim() || !password || !confirmPassword) {
-      setError("Preencha todos os campos.")
+    const cleanName = name.trim()
+    const cleanEmail = email.trim().toLowerCase()
+
+    if (!cleanName) {
+      setError("Informe seu nome completo.")
+      return
+    }
+
+    if (!cleanEmail) {
+      setError("Informe seu e-mail.")
+      return
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      setError("Informe um e-mail válido.")
+      return
+    }
+
+    if (!password) {
+      setError("Crie uma senha.")
+      return
+    }
+
+    if (!confirmPassword) {
+      setError("Confirme sua senha.")
       return
     }
 
     if (!isPasswordValid) {
-      setError("Sua senha ainda não atende aos requisitos.")
+      setError(
+        "A senha precisa ter pelo menos 8 caracteres, uma letra maiúscula e um número."
+      )
       return
     }
 
@@ -76,27 +103,31 @@ export default function SignupPage() {
     try {
       setIsLoading(true)
 
-      const data = await signUpWithEmail(name.trim(), email.trim(), password)
+      const data = await signUpWithEmail(cleanName, cleanEmail, password)
 
       if (data.session) {
-        setSuccess("Conta criada com sucesso.")
+        setSuccess("Conta criada com sucesso. Redirecionando...")
         router.push("/chat")
         return
       }
 
-      setSuccess(
-        "Conta criada com sucesso. Verifique seu e-mail para confirmar o cadastro."
-      )
+      if (data.user) {
+        setSuccess("Conta criada com sucesso. Redirecionando para o login...")
 
-      setName("")
-      setEmail("")
-      setPassword("")
-      setConfirmPassword("")
-      setAcceptedTerms(false)
+        setName("")
+        setEmail("")
+        setPassword("")
+        setConfirmPassword("")
+        setAcceptedTerms(false)
 
-      setTimeout(() => {
-        router.push("/login")
-      }, 1200)
+        setTimeout(() => {
+          router.push("/login")
+        }, 1000)
+
+        return
+      }
+
+      setSuccess("Cadastro iniciado com sucesso.")
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Não foi possível criar a conta."
@@ -107,20 +138,15 @@ export default function SignupPage() {
     }
   }
 
-
   return (
     <>
       <Navbar />
 
       <main className="min-h-screen overflow-x-hidden bg-[#0b0b0c] text-white">
         <section className="relative min-h-screen">
-
           <div className="absolute inset-0 -z-10 bg-[#0b0b0c]/88" />
 
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0 -z-10"
-          >
+          <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
             <div className="absolute left-[-8rem] top-[-10rem] h-[28rem] w-[28rem] rounded-full bg-[radial-gradient(circle,rgba(212,175,55,0.16)_0%,rgba(212,175,55,0.05)_35%,transparent_72%)] blur-3xl md:h-[34rem] md:w-[34rem]" />
             <div className="absolute right-[-10rem] top-[10rem] h-[24rem] w-[24rem] rounded-full bg-[radial-gradient(circle,rgba(120,119,108,0.12)_0%,rgba(120,119,108,0.05)_40%,transparent_75%)] blur-3xl md:h-[30rem] md:w-[30rem]" />
             <div className="absolute bottom-[-12rem] left-1/2 h-[22rem] w-[22rem] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(166,124,82,0.12)_0%,rgba(166,124,82,0.03)_45%,transparent_75%)] blur-3xl md:h-[28rem] md:w-[28rem]" />
@@ -178,7 +204,8 @@ export default function SignupPage() {
                           value={name}
                           onChange={(e) => setName(e.target.value)}
                           autoComplete="name"
-                          className="h-12 w-full rounded-2xl border border-white/10 bg-black/30 pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-zinc-500 focus:border-[#d4af37]/40 focus:ring-2 focus:ring-[#d4af37]/15"
+                          disabled={isLoading}
+                          className="h-12 w-full rounded-2xl border border-white/10 bg-black/30 pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-zinc-500 focus:border-[#d4af37]/40 focus:ring-2 focus:ring-[#d4af37]/15 disabled:cursor-not-allowed disabled:opacity-60"
                         />
                       </div>
                     </Field>
@@ -192,7 +219,8 @@ export default function SignupPage() {
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
                           autoComplete="email"
-                          className="h-12 w-full rounded-2xl border border-white/10 bg-black/30 pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-zinc-500 focus:border-[#d4af37]/40 focus:ring-2 focus:ring-[#d4af37]/15"
+                          disabled={isLoading}
+                          className="h-12 w-full rounded-2xl border border-white/10 bg-black/30 pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-zinc-500 focus:border-[#d4af37]/40 focus:ring-2 focus:ring-[#d4af37]/15 disabled:cursor-not-allowed disabled:opacity-60"
                         />
                       </div>
                     </Field>
@@ -207,13 +235,17 @@ export default function SignupPage() {
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             autoComplete="new-password"
-                            className="h-12 w-full rounded-2xl border border-white/10 bg-black/30 pl-11 pr-12 text-sm text-white outline-none transition placeholder:text-zinc-500 focus:border-[#d4af37]/40 focus:ring-2 focus:ring-[#d4af37]/15"
+                            disabled={isLoading}
+                            className="h-12 w-full rounded-2xl border border-white/10 bg-black/30 pl-11 pr-12 text-sm text-white outline-none transition placeholder:text-zinc-500 focus:border-[#d4af37]/40 focus:ring-2 focus:ring-[#d4af37]/15 disabled:cursor-not-allowed disabled:opacity-60"
                           />
                           <button
                             type="button"
                             onClick={() => setShowPassword((prev) => !prev)}
-                            className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 transition hover:text-white"
-                            aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                            disabled={isLoading}
+                            className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 transition hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+                            aria-label={
+                              showPassword ? "Ocultar senha" : "Mostrar senha"
+                            }
                           >
                             {showPassword ? (
                               <EyeOff className="size-4" />
@@ -233,14 +265,16 @@ export default function SignupPage() {
                             value={confirmPassword}
                             onChange={(e) => setConfirmPassword(e.target.value)}
                             autoComplete="new-password"
-                            className="h-12 w-full rounded-2xl border border-white/10 bg-black/30 pl-11 pr-12 text-sm text-white outline-none transition placeholder:text-zinc-500 focus:border-[#d4af37]/40 focus:ring-2 focus:ring-[#d4af37]/15"
+                            disabled={isLoading}
+                            className="h-12 w-full rounded-2xl border border-white/10 bg-black/30 pl-11 pr-12 text-sm text-white outline-none transition placeholder:text-zinc-500 focus:border-[#d4af37]/40 focus:ring-2 focus:ring-[#d4af37]/15 disabled:cursor-not-allowed disabled:opacity-60"
                           />
                           <button
                             type="button"
                             onClick={() =>
                               setShowConfirmPassword((prev) => !prev)
                             }
-                            className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 transition hover:text-white"
+                            disabled={isLoading}
+                            className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 transition hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
                             aria-label={
                               showConfirmPassword
                                 ? "Ocultar confirmação de senha"
@@ -292,7 +326,8 @@ export default function SignupPage() {
                         type="checkbox"
                         checked={acceptedTerms}
                         onChange={(e) => setAcceptedTerms(e.target.checked)}
-                        className="mt-0.5 size-4 rounded border-white/10 bg-black/30 text-[#d4af37] focus:ring-[#d4af37]/20"
+                        disabled={isLoading}
+                        className="mt-0.5 size-4 rounded border-white/10 bg-black/30 text-[#d4af37] focus:ring-[#d4af37]/20 disabled:cursor-not-allowed disabled:opacity-60"
                       />
                       <span>
                         Concordo com os termos de uso e com a política de
@@ -302,7 +337,7 @@ export default function SignupPage() {
 
                     <Button
                       type="submit"
-                      disabled={isLoading || isGoogleLoading}
+                      disabled={isLoading}
                       className="h-12 w-full rounded-2xl bg-[#d4af37] text-sm font-semibold text-black hover:bg-[#c9a633] disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {isLoading ? "Criando conta..." : "Criar conta"}
@@ -348,27 +383,60 @@ export default function SignupPage() {
 function traduzirErroAuth(message: string) {
   const normalized = message.toLowerCase()
 
-  if (normalized.includes("user already registered")) {
+  if (
+    normalized.includes("too many requests") ||
+    normalized.includes("rate limit") ||
+    normalized.includes("rate") ||
+    normalized.includes("muitas tentativas")
+  ) {
+    return "Muitas tentativas de cadastro foram feitas. Aguarde alguns minutos antes de tentar novamente."
+  }
+
+  if (
+    normalized.includes("user already registered") ||
+    normalized.includes("already registered") ||
+    normalized.includes("already exists") ||
+    normalized.includes("email address already")
+  ) {
     return "Já existe uma conta cadastrada com este e-mail."
   }
 
-  if (normalized.includes("password should be at least")) {
-    return "A senha precisa ter pelo menos 6 caracteres."
+  if (
+    normalized.includes("invalid email") ||
+    normalized.includes("email not valid")
+  ) {
+    return "Informe um e-mail válido."
   }
 
-  if (normalized.includes("invalid email")) {
-    return "Informe um e-mail válido."
+  if (
+    normalized.includes("password should be at least") ||
+    normalized.includes("weak password") ||
+    normalized.includes("password")
+  ) {
+    return "A senha informada não atende aos requisitos mínimos."
   }
 
   if (normalized.includes("signup is disabled")) {
     return "O cadastro está desabilitado no momento."
   }
 
+  if (normalized.includes("email signups are disabled")) {
+    return "Cadastro por e-mail está desabilitado no Supabase."
+  }
+
   if (normalized.includes("unable to validate email address")) {
     return "Não foi possível validar este e-mail."
   }
 
-  return message
+  if (normalized.includes("database error")) {
+    return "A conta foi criada, mas houve um erro ao salvar os dados do usuário. Verifique as triggers/tabelas no Supabase."
+  }
+
+  if (normalized.includes("failed to fetch")) {
+    return "Não foi possível conectar ao servidor. Verifique sua internet ou as configurações do Supabase."
+  }
+
+  return "Não foi possível criar a conta. Tente novamente."
 }
 
 function Field({

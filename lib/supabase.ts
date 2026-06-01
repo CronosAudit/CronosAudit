@@ -15,10 +15,44 @@ if (!supabaseKey) {
   );
 }
 
-export const supabase = createClient(supabaseUrl, supabaseKey, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-  },
-});
+// Custom storage adapter for better reliability in Next.js
+const createBrowserClient = () => {
+  const storage: any = {
+    getItem: (key: string) => {
+      if (typeof window === "undefined") return null;
+      try {
+        return localStorage.getItem(key);
+      } catch (error) {
+        console.warn(`Failed to get item from localStorage: ${key}`, error);
+        return null;
+      }
+    },
+    setItem: (key: string, value: string) => {
+      if (typeof window === "undefined") return;
+      try {
+        localStorage.setItem(key, value);
+      } catch (error) {
+        console.warn(`Failed to set item in localStorage: ${key}`, error);
+      }
+    },
+    removeItem: (key: string) => {
+      if (typeof window === "undefined") return;
+      try {
+        localStorage.removeItem(key);
+      } catch (error) {
+        console.warn(`Failed to remove item from localStorage: ${key}`, error);
+      }
+    },
+  };
+
+  return createClient(supabaseUrl, supabaseKey, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      storage: storage,
+    },
+  });
+};
+
+export const supabase = createBrowserClient();

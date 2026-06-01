@@ -1,4 +1,31 @@
+// lib/auth.ts
 import { supabase } from "@/lib/supabase"
+
+/**
+ * Refreshes the user session, handling token errors gracefully
+ */
+export async function refreshSession() {
+  try {
+    const { data, error } = await supabase.auth.refreshSession()
+    
+    if (error) {
+      const errorMessage = error.message.toLowerCase()
+      
+      if (errorMessage.includes("refresh") || errorMessage.includes("token")) {
+        console.warn("Refresh token inválido, limpando sessão...", error)
+        await supabase.auth.signOut()
+        return null
+      }
+      
+      throw error
+    }
+    
+    return data.session
+  } catch (error) {
+    console.error("Erro ao renovar sessão:", error)
+    return null
+  }
+}
 
 export async function signUpWithEmail(
   name: string,
@@ -6,16 +33,28 @@ export async function signUpWithEmail(
   password: string
 ) {
   const { data, error } = await supabase.auth.signUp({
-    email,
+    email: email.trim().toLowerCase(),
     password,
     options: {
       data: {
-        name,
+        name: name.trim(),
       },
+      emailRedirectTo:
+        typeof window !== "undefined"
+          ? `${window.location.origin}/auth/callback`
+          : undefined,
     },
   })
 
   if (error) {
+    const message = error.message.toLowerCase()
+
+    if (error.status === 429 || message.includes("rate")) {
+      throw new Error(
+        "Muitas tentativas de cadastro. Aguarde alguns minutos antes de tentar novamente."
+      )
+    }
+
     throw new Error(error.message)
   }
 
@@ -24,7 +63,7 @@ export async function signUpWithEmail(
 
 export async function signInWithEmail(email: string, password: string) {
   const { data, error } = await supabase.auth.signInWithPassword({
-    email,
+    email: email.trim().toLowerCase(),
     password,
   })
 
@@ -54,14 +93,25 @@ export async function signInWithGoogle() {
 }
 
 export async function sendPasswordReset(email: string) {
-  const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo:
-      typeof window !== "undefined"
-        ? `${window.location.origin}/reset-password`
-        : undefined,
-  })
+  const { data, error } = await supabase.auth.resetPasswordForEmail(
+    email.trim().toLowerCase(),
+    {
+      redirectTo:
+        typeof window !== "undefined"
+          ? `${window.location.origin}/reset-password`
+          : undefined,
+    }
+  )
 
   if (error) {
+    const message = error.message.toLowerCase()
+
+    if (error.status === 429 || message.includes("rate")) {
+      throw new Error(
+        "Muitas solicitações de redefinição. Aguarde alguns minutos antes de tentar novamente."
+      )
+    }
+
     throw new Error(error.message)
   }
 

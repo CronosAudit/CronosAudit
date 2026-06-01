@@ -174,8 +174,7 @@ export function ChatSection() {
     );
   }
   const [message, setMessage] = useState("");
-  const [file, setFile] = useState<File | null>(null);
-
+  const [files, setFiles] = useState<File[]>([]);
   const [cnpj, setCnpj] = useState("");
   const [regimeTributario, setRegimeTributario] =
     useState<TaxRegime>("simples_nacional");
@@ -221,7 +220,7 @@ export function ChatSection() {
   }, [conversations, activeConversationId]);
 
   const hasStartedChat = messages.length > 0;
-  const hasMessage = message.trim().length > 0 || file !== null;
+  const hasMessage = message.trim().length > 0 || files.length > 0;
 
   const reportEndpoint = "/api/gerar-relatorio";
   const uploadDocumentEndpoint = "/api/upload-documento";
@@ -319,7 +318,7 @@ export function ChatSection() {
 
   const handleClear = useCallback(() => {
     setMessage("");
-    setFile(null);
+    setFiles([]);
     adjustHeight(true);
 
     if (fileInputRef.current) {
@@ -553,11 +552,19 @@ export function ChatSection() {
     };
   }, [companyQuery]);
 
-  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      setFile(e.target.files[0]);
-    }
-  };
+const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+  const selectedFiles = Array.from(e.target.files || []).slice(0, 5);
+
+  setFiles(selectedFiles);
+
+  if (selectedFiles.length > 0 && !message.trim()) {
+    setMessage(
+      selectedFiles.length === 1
+        ? `Analise o arquivo "${selectedFiles[0].name}".`
+        : `Analise os ${selectedFiles.length} arquivos selecionados.`,
+    );
+  }
+};
 
   const deleteConversation = useCallback(
     async (conversationId: string) => {
@@ -596,12 +603,12 @@ export function ChatSection() {
 
     const normalizedCnpj = normalizeCnpj(cnpj);
 
-    if (file && !normalizedCnpj) {
+    if (files.length > 0 && !normalizedCnpj) {
       setErrorMessage("Informe o CNPJ antes de enviar um documento.");
       return;
     }
 
-    if (file && !anoFiscal.trim()) {
+    if (files.length > 0 && !anoFiscal.trim()) {
       setErrorMessage("Informe o ano fiscal antes de enviar um documento.");
       return;
     }
@@ -615,7 +622,7 @@ export function ChatSection() {
 
     const now = new Date().toISOString();
     const trimmedMessage = message.trim();
-    const selectedFile = file;
+    const selectedFiles = files;
 
     setIsLoading(true);
     setErrorMessage("");
@@ -632,20 +639,20 @@ export function ChatSection() {
       let uploadedFileName: string | null = null;
       let uploadedStoragePath: string | null = null;
 
-      if (selectedFile) {
-        const safeFileName = sanitizeFileName(selectedFile.name);
+      if (selectedFiles.length > 0) {
+        const safeFileName = sanitizeFileName(selectedFiles[0].name);
         const storagePath = `${userId}/${conversation.conversationHash}/${Date.now()}-${safeFileName}`;
 
         const uploadResult = await supabase.storage
           .from("evidences")
-          .upload(storagePath, selectedFile, {
+          .upload(storagePath, selectedFiles[0], {
             cacheControl: "3600",
             upsert: false,
           });
 
         if (uploadResult.error) throw uploadResult.error;
 
-        uploadedFileName = selectedFile.name;
+        uploadedFileName = selectedFiles[0].name;
         uploadedStoragePath = storagePath;
 
         const { error: fileInsertError } = await supabase
@@ -653,11 +660,11 @@ export function ChatSection() {
           .insert({
             conversation_id: conversation.id,
             uploaded_by: userId,
-            original_file_name: selectedFile.name,
+            original_file_name: selectedFiles[0].name,
             storage_bucket: "evidences",
             storage_path: storagePath,
-            mime_type: selectedFile.type || null,
-            file_size_bytes: selectedFile.size,
+            mime_type: selectedFiles[0].type || null,
+            file_size_bytes: selectedFiles[0].size,
             upload_status: "uploaded",
           });
 
@@ -689,9 +696,9 @@ export function ChatSection() {
 
         await insertAssistantMessage(
           conversation.id,
-          `Arquivo "${selectedFile.name}" enviado com sucesso. O documento foi armazenado no Supabase e encaminhado para o fluxo externo com CNPJ ${normalizedCnpj}, tipo "${docType}" e ano fiscal ${anoFiscal}.`,
+          `Arquivo "${selectedFiles[0].name}" enviado com sucesso. O documento foi armazenado no Supabase e encaminhado para o fluxo externo com CNPJ ${normalizedCnpj}, tipo "${docType}" e ano fiscal ${anoFiscal}.`,
           {
-            fileName: selectedFile.name,
+            fileName: selectedFiles[0].name,
             storagePath,
             processingStatus: "uploaded",
             cnpj: normalizedCnpj,
@@ -722,12 +729,12 @@ export function ChatSection() {
         uploadedFileName,
       );
 
-      if ((trimmedMessage || selectedFile) && analysisEndpoint) {
+      if ((trimmedMessage || selectedFiles.length > 0) && analysisEndpoint) {
         try {
           const formData = new FormData();
 
           if (trimmedMessage) formData.append("message", trimmedMessage);
-          if (selectedFile) formData.append("file", selectedFile);
+          if (selectedFiles.length > 0) formData.append("file", selectedFiles[0]);
           if (conversation.id) {
             formData.append("conversation_id", conversation.id);
           }
@@ -766,7 +773,7 @@ export function ChatSection() {
         }
       }
 
-      if (trimmedMessage || selectedFile) {
+      if (trimmedMessage || selectedFiles.length > 0) {
         await insertAssistantMessage(conversation.id, assistantText, {
           fileName: uploadedFileName,
           cnpj: normalizedCnpj || null,
@@ -932,7 +939,7 @@ export function ChatSection() {
       <ChatLandingView
         message={message}
         setMessage={setMessage}
-        file={file}
+        files={files}
         cnpj={cnpj}
         setCnpj={setCnpj}
         regimeTributario={regimeTributario}
@@ -979,7 +986,7 @@ export function ChatSection() {
       setActiveConversationId={setActiveConversationId}
       message={message}
       setMessage={setMessage}
-      file={file}
+      files={files}
       cnpj={cnpj}
       setCnpj={setCnpj}
       regimeTributario={regimeTributario}

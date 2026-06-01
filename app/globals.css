@@ -429,3 +429,13 @@ h1, h2, h3, h4, h5, h6 {
 .animate-fade-slide-in-4 {
   animation: fadeSlideIn 1.05s ease-out both;
 }
+@keyframes smokeMove {
+  0%, 100% {
+    transform: translate3d(-2%, -2%, 0) scale(1);
+    opacity: 0.65;
+  }
+  50% {
+    transform: translate3d(2%, 2%, 0) scale(1.08);
+    opacity: 0.9;
+  }
+}

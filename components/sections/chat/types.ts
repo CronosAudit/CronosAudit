@@ -98,7 +98,7 @@ export type AuditMetadataFormProps = {
 export type LandingProps = {
   message: string;
   setMessage: Dispatch<SetStateAction<string>>;
-  file: File | null;
+  files: File[];
   cnpj: string;
   setCnpj: Dispatch<SetStateAction<string>>;
   regimeTributario: TaxRegime;
@@ -142,7 +142,7 @@ export type ConversationProps = {
   setActiveConversationId: Dispatch<SetStateAction<string>>;
   message: string;
   setMessage: Dispatch<SetStateAction<string>>;
-  file: File | null;
+  files: File[];
   cnpj: string;
   setCnpj: Dispatch<SetStateAction<string>>;
   regimeTributario: TaxRegime;

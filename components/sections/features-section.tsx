@@ -1,3 +1,4 @@
+// components/sections/features-section.tsx
 "use client"
 
 import { motion } from "framer-motion"
@@ -70,7 +71,7 @@ export function FeaturesSection() {
   return (
     <section
       id="solucoes"
-      className="relative border-t border-white/5 bg-[#0d0d0f] py-16 md:py-28"
+      className="relative border border-white/0 py-16 md:py-28"
     >
       <div className="mx-auto max-w-7xl px-6">
         <motion.div

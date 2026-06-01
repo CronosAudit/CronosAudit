@@ -1,8 +1,10 @@
-"use client"
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// components/ui/navbar.tsx
+"use client";
 
-import * as React from "react"
-import Link from "next/link"
-import { usePathname, useRouter } from "next/navigation"
+import * as React from "react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import {
   ChevronDown,
   ChevronRight,
@@ -11,50 +13,79 @@ import {
   Menu,
   User,
   X,
-} from "lucide-react"
+} from "lucide-react";
 
-import { Button } from "@/components/ui/button"
-import { cn } from "@/lib/utils"
-import { supabase } from "@/lib/supabase"
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { supabase } from "@/lib/supabase";
 
 export type NavItem = {
-  name: string
-  href: string
-}
+  name: string;
+  href: string;
+};
 
 type NavbarProps = {
-  menuItems?: NavItem[]
-  showAuthButtons?: boolean
-  showContactButtonMobile?: boolean
-  contactHref?: string
-  className?: string
-  userName?: string
-  userEmail?: string
-  showUserMenu?: boolean
-  dashboardHref?: string
-  profileHref?: string
-  onLogout?: () => void | Promise<void>
-}
+  menuItems?: NavItem[];
+  showAuthButtons?: boolean;
+  showContactButtonMobile?: boolean;
+  contactHref?: string;
+  className?: string;
+  userName?: string;
+  userEmail?: string;
+  showUserMenu?: boolean;
+  dashboardHref?: string;
+  profileHref?: string;
+  onLogout?: () => void | Promise<void>;
+};
 
 export const defaultMenuItems: NavItem[] = [
   { name: "Soluções", href: "/solucoes" },
-  // { name: "Recursos", href: "/recursos" },
-  // { name: "Governança", href: "/governanca" },
-  // { name: "Contato", href: "/contato" },
-  // { name: "Chat", href: "/chat" },
   { name: "Planos", href: "/planos" },
-]
+];
 
 export const dashboardMenuItems: NavItem[] = [
   { name: "Dashboard", href: "/dashboard" },
   { name: "Chat", href: "/chat" },
-  // { name: "Relatórios", href: "/relatorios" },
+    { name: "Projetos", href: "/projetos" },
   { name: "Documentos Exemplo", href: "/dashboard/documentos" },
-]
+  { name: "Soluções", href: "/solucoes" },
+  { name: "Planos", href: "/planos" },
+];
 
 type ResolvedUser = {
-  name: string
-  email: string
+  name: string;
+  email: string;
+};
+
+function resolveUserDisplay(user: any): ResolvedUser {
+  const email = user?.email?.trim() || "";
+
+  const metadataName =
+    typeof user?.user_metadata?.name === "string"
+      ? user.user_metadata.name.trim()
+      : "";
+
+  const metadataFullName =
+    typeof user?.user_metadata?.full_name === "string"
+      ? user.user_metadata.full_name.trim()
+      : "";
+
+  const metadataDisplayName =
+    typeof user?.user_metadata?.display_name === "string"
+      ? user.user_metadata.display_name.trim()
+      : "";
+
+  const name =
+    metadataName ||
+    metadataFullName ||
+    metadataDisplayName ||
+    email.split("@")[0] ||
+    "Usuário";
+
+  return {
+    name,
+    email,
+  };
 }
 
 export function Navbar({
@@ -70,215 +101,143 @@ export function Navbar({
   profileHref = "/perfil",
   onLogout,
 }: NavbarProps) {
-  const pathname = usePathname()
-  const router = useRouter()
+  const pathname = usePathname();
+  const router = useRouter();
 
-  const [menuOpen, setMenuOpen] = React.useState(false)
-  const [userMenuOpen, setUserMenuOpen] = React.useState(false)
-  const [isScrolled, setIsScrolled] = React.useState(false)
-  const [authUser, setAuthUser] = React.useState<ResolvedUser | null>(null)
-  const [isLoadingUser, setIsLoadingUser] = React.useState(true)
+  const [menuOpen, setMenuOpen] = React.useState(false);
+  const [userMenuOpen, setUserMenuOpen] = React.useState(false);
+  const [isScrolled, setIsScrolled] = React.useState(false);
+  const [authUser, setAuthUser] = React.useState<ResolvedUser | null>(null);
+  const [isLoadingUser, setIsLoadingUser] = React.useState(true);
 
-  const userMenuRef = React.useRef<HTMLDivElement | null>(null)
+  const userMenuRef = React.useRef<HTMLDivElement | null>(null);
 
-  const loadAuthenticatedUser = React.useCallback(async () => {
-    try {
-      setIsLoadingUser(true)
+const loadAuthenticatedUser = React.useCallback(async () => {
+  try {
+    setIsLoadingUser(true);
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
 
-      if (!user) {
-        setAuthUser(null)
-        return
-      }
+    const user = session?.user;
 
-      const email = user.email?.trim() || ""
-      const metadataName =
-        typeof user.user_metadata?.name === "string"
-          ? user.user_metadata.name.trim()
-          : ""
-      const metadataFullName =
-        typeof user.user_metadata?.full_name === "string"
-          ? user.user_metadata.full_name.trim()
-          : ""
-
-      let profileName = ""
-      let profileEmail = ""
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("name, email")
-        .eq("id", user.id)
-        .maybeSingle()
-
-      if (profile) {
-        profileName =
-          typeof profile.name === "string" ? profile.name.trim() : ""
-        profileEmail =
-          typeof profile.email === "string" ? profile.email.trim() : ""
-      }
-
-      const finalName =
-        userName?.trim() ||
-        profileName ||
-        metadataName ||
-        metadataFullName ||
-        email ||
-        "Usuário"
-
-      const finalEmail = userEmail?.trim() || profileEmail || email || ""
-
-      setAuthUser({
-        name: finalName,
-        email: finalEmail,
-      })
-    } catch (error) {
-      console.error("Erro ao carregar usuário autenticado na Navbar:", error)
-      setAuthUser(null)
-    } finally {
-      setIsLoadingUser(false)
+    if (!user) {
+      setAuthUser(null);
+      return;
     }
-  }, [userEmail, userName])
+
+    setAuthUser(resolveUserDisplay(user));
+  } catch (error) {
+    console.error("Erro ao carregar usuário autenticado na Navbar:", error);
+    setAuthUser(null);
+  } finally {
+    setIsLoadingUser(false);
+  }
+}, []);
 
   React.useEffect(() => {
-    const handleScroll = () => setIsScrolled(window.scrollY > 24)
+    const handleScroll = () => setIsScrolled(window.scrollY > 24);
 
-    handleScroll()
-    window.addEventListener("scroll", handleScroll, { passive: true })
+    handleScroll();
+    window.addEventListener("scroll", handleScroll, { passive: true });
 
-    return () => window.removeEventListener("scroll", handleScroll)
-  }, [])
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   React.useEffect(() => {
-    document.body.style.overflow = menuOpen ? "hidden" : ""
+    document.body.style.overflow = menuOpen ? "hidden" : "";
 
     return () => {
-      document.body.style.overflow = ""
-    }
-  }, [menuOpen])
+      document.body.style.overflow = "";
+    };
+  }, [menuOpen]);
 
   React.useEffect(() => {
-    setMenuOpen(false)
-    setUserMenuOpen(false)
-  }, [pathname])
+    setMenuOpen(false);
+    setUserMenuOpen(false);
+  }, [pathname]);
 
   React.useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (!userMenuRef.current) return
-      if (!userMenuRef.current.contains(event.target as Node)) {
-        setUserMenuOpen(false)
-      }
-    }
+      if (!userMenuRef.current) return;
 
-    document.addEventListener("mousedown", handleClickOutside)
+      if (!userMenuRef.current.contains(event.target as Node)) {
+        setUserMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
 
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside)
-    }
-  }, [])
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   React.useEffect(() => {
-    loadAuthenticatedUser()
+    loadAuthenticatedUser();
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!session?.user) {
-        setAuthUser(null)
-        setIsLoadingUser(false)
-        return
+        setAuthUser(null);
+        setIsLoadingUser(false);
+        return;
       }
 
-      const email = session.user.email?.trim() || ""
-      const metadataName =
-        typeof session.user.user_metadata?.name === "string"
-          ? session.user.user_metadata.name.trim()
-          : ""
-      const metadataFullName =
-        typeof session.user.user_metadata?.full_name === "string"
-          ? session.user.user_metadata.full_name.trim()
-          : ""
-
-      let profileName = ""
-      let profileEmail = ""
-
-      try {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("name, email")
-          .eq("id", session.user.id)
-          .maybeSingle()
-
-        if (profile) {
-          profileName =
-            typeof profile.name === "string" ? profile.name.trim() : ""
-          profileEmail =
-            typeof profile.email === "string" ? profile.email.trim() : ""
-        }
-      } catch (error) {
-        console.error("Erro ao sincronizar usuário da Navbar:", error)
-      }
-
-      setAuthUser({
-        name:
-          userName?.trim() ||
-          profileName ||
-          metadataName ||
-          metadataFullName ||
-          email ||
-          "Usuário",
-        email: userEmail?.trim() || profileEmail || email || "",
-      })
-
-      setIsLoadingUser(false)
-    })
+      setAuthUser(resolveUserDisplay(session.user));
+      setIsLoadingUser(false);
+    });
 
     return () => {
-      subscription.unsubscribe()
-    }
-  }, [loadAuthenticatedUser, userEmail, userName])
+      subscription.unsubscribe();
+    };
+  }, [loadAuthenticatedUser]);
 
-  const closeMenu = () => setMenuOpen(false)
+  const closeMenu = () => setMenuOpen(false);
 
   const handleLogout = async () => {
     try {
-      setUserMenuOpen(false)
-      setMenuOpen(false)
+      setUserMenuOpen(false);
+      setMenuOpen(false);
 
       if (onLogout) {
-        await onLogout()
-      } else {
-        await supabase.auth.signOut()
-        setAuthUser(null)
-        router.push("/login")
-        router.refresh()
+        await onLogout();
+        return;
       }
+
+      await supabase.auth.signOut();
+
+      setAuthUser(null);
+
+      router.replace("/login");
+      router.refresh();
     } catch (error) {
-      console.error("Erro ao fazer logout:", error)
+      console.error("Erro ao fazer logout:", error);
     }
-  }
+  };
 
   const isActiveLink = (href: string) => {
-    if (!href.startsWith("/")) return false
-    if (href === "/") return pathname === "/"
-    return pathname === href || pathname.startsWith(`${href}/`)
-  }
+    if (!href.startsWith("/")) return false;
+    if (href === "/") return pathname === "/";
 
-  const resolvedName = userName?.trim() || authUser?.name || ""
-  const resolvedEmail = userEmail?.trim() || authUser?.email || ""
+    return pathname === href || pathname.startsWith(`${href}/`);
+  };
 
-  const hasUser = Boolean(resolvedName || resolvedEmail)
-  const shouldShowUserMenu = showUserMenu ?? hasUser
+  const resolvedName = userName?.trim() || authUser?.name || "";
+  const resolvedEmail = userEmail?.trim() || authUser?.email || "";
+
+  const hasUser = Boolean(resolvedName || resolvedEmail);
+  const shouldShowUserMenu = showUserMenu ?? hasUser;
 
   const initial =
     resolvedName?.charAt(0)?.toUpperCase() ||
     resolvedEmail?.charAt(0)?.toUpperCase() ||
-    "U"
+    "U";
 
-  const displayName = resolvedName || resolvedEmail || "Usuário"
-  const displaySubtext = resolvedEmail || "Painel do usuário"
+  const displayName = resolvedName || resolvedEmail || "Usuário";
+  const displaySubtext = resolvedEmail || "Painel do usuário";
 
   return (
     <header className={cn("relative z-50", className)}>
@@ -287,7 +246,7 @@ export function Navbar({
           className={cn(
             "mx-auto max-w-6xl rounded-2xl border border-transparent px-4 transition-all duration-300 sm:px-6 lg:px-8",
             isScrolled &&
-              "border-white/10 bg-black/45 shadow-lg shadow-black/20 backdrop-blur-xl"
+              "border-white/10 bg-black/45 shadow-lg shadow-black/20 backdrop-blur-xl",
           )}
         >
           <div className="flex h-16 items-center justify-between gap-4">
@@ -302,7 +261,7 @@ export function Navbar({
             <div className="hidden lg:flex">
               <ul className="flex items-center gap-8 text-sm">
                 {menuItems.map((item) => {
-                  const active = isActiveLink(item.href)
+                  const active = isActiveLink(item.href);
 
                   return (
                     <li key={`${item.name}-${item.href}`}>
@@ -310,13 +269,13 @@ export function Navbar({
                         href={item.href}
                         className={cn(
                           "transition duration-150 hover:text-[#f4e7b2]",
-                          active ? "text-[#f4e7b2]" : "text-zinc-300"
+                          active ? "text-[#f4e7b2]" : "text-zinc-300",
                         )}
                       >
                         {item.name}
                       </Link>
                     </li>
-                  )
+                  );
                 })}
               </ul>
             </div>
@@ -347,7 +306,7 @@ export function Navbar({
                     <ChevronDown
                       className={cn(
                         "size-4 text-zinc-400 transition-transform duration-200",
-                        userMenuOpen && "rotate-180"
+                        userMenuOpen && "rotate-180",
                       )}
                     />
                   </button>
@@ -369,7 +328,7 @@ export function Navbar({
                           "flex items-center gap-3 rounded-xl px-3 py-3 text-sm transition hover:bg-white/5 hover:text-[#f4e7b2]",
                           isActiveLink(dashboardHref)
                             ? "bg-white/5 text-[#f4e7b2]"
-                            : "text-zinc-200"
+                            : "text-zinc-200",
                         )}
                       >
                         <Hourglass className="size-4" />
@@ -382,7 +341,7 @@ export function Navbar({
                           "flex items-center gap-3 rounded-xl px-3 py-3 text-sm transition hover:bg-white/5 hover:text-[#f4e7b2]",
                           isActiveLink(profileHref)
                             ? "bg-white/5 text-[#f4e7b2]"
-                            : "text-zinc-200"
+                            : "text-zinc-200",
                         )}
                       >
                         <User className="size-4" />
@@ -432,7 +391,11 @@ export function Navbar({
               aria-expanded={menuOpen}
               className="inline-flex size-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white transition hover:bg-white/10 lg:hidden"
             >
-              {menuOpen ? <X className="size-5" /> : <Menu className="size-5" />}
+              {menuOpen ? (
+                <X className="size-5" />
+              ) : (
+                <Menu className="size-5" />
+              )}
             </button>
           </div>
         </div>
@@ -466,7 +429,7 @@ export function Navbar({
 
               <ul className="space-y-1">
                 {menuItems.map((item) => {
-                  const active = isActiveLink(item.href)
+                  const active = isActiveLink(item.href);
 
                   return (
                     <li key={`${item.name}-${item.href}`}>
@@ -475,14 +438,16 @@ export function Navbar({
                         onClick={closeMenu}
                         className={cn(
                           "flex items-center justify-between rounded-xl px-3 py-3 text-base transition hover:bg-white/5 hover:text-[#f4e7b2]",
-                          active ? "bg-white/5 text-[#f4e7b2]" : "text-zinc-200"
+                          active
+                            ? "bg-white/5 text-[#f4e7b2]"
+                            : "text-zinc-200",
                         )}
                       >
                         <span>{item.name}</span>
                         <ChevronRight className="size-4 opacity-60" />
                       </Link>
                     </li>
-                  )
+                  );
                 })}
               </ul>
 
@@ -551,7 +516,7 @@ export function Navbar({
         )}
       </nav>
     </header>
-  )
+  );
 }
 
 function Logo() {
@@ -570,5 +535,5 @@ function Logo() {
         </p>
       </div>
     </div>
-  )
+  );
 }

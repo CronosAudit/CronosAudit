@@ -1,6 +1,7 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   BadgeDollarSign,
@@ -88,11 +89,29 @@ export function AuditMetadataForm({
     null,
   );
   const [companyModalOpen, setCompanyModalOpen] = useState(false);
-  const mounted = true;
+  const [isMounted, setIsMounted] = useState(false);
+
+  const companyInputWrapRef = useRef<HTMLDivElement | null>(null);
+
+  const [dropdownPosition, setDropdownPosition] = useState({
+    top: 0,
+    left: 0,
+    width: 0,
+  });
 
   useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isMounted) return;
+
     try {
-      const saved = window.localStorage.getItem(STORAGE_KEY);
+      const saved =
+        typeof window !== "undefined"
+          ? window.localStorage.getItem(STORAGE_KEY)
+          : null;
+
       if (!saved) return;
 
       const parsed = JSON.parse(saved) as {
@@ -113,25 +132,37 @@ export function AuditMetadataForm({
     } catch (error) {
       console.error("Erro ao restaurar dados do processamento:", error);
     }
-  }, [setAnoFiscal, setCnpj, setCompanyQuery, setDocType, setRegimeTributario]);
+  }, [
+    isMounted,
+    setAnoFiscal,
+    setCnpj,
+    setCompanyQuery,
+    setDocType,
+    setRegimeTributario,
+  ]);
 
   useEffect(() => {
+    if (!isMounted) return;
+
     try {
-      window.localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({
-          companyQuery,
-          cnpj,
-          regimeTributario,
-          anoFiscal,
-          docType,
-          selectedCompany,
-        }),
-      );
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify({
+            companyQuery,
+            cnpj,
+            regimeTributario,
+            anoFiscal,
+            docType,
+            selectedCompany,
+          }),
+        );
+      }
     } catch (error) {
       console.error("Erro ao salvar dados do processamento:", error);
     }
   }, [
+    isMounted,
     companyQuery,
     cnpj,
     regimeTributario,
@@ -141,7 +172,33 @@ export function AuditMetadataForm({
   ]);
 
   useEffect(() => {
-    if (!companyModalOpen) return;
+    if (!showCompanySuggestions || typeof window === "undefined") return;
+
+    const updatePosition = () => {
+      const rect = companyInputWrapRef.current?.getBoundingClientRect();
+
+      if (!rect) return;
+
+      setDropdownPosition({
+        top: rect.bottom + 8,
+        left: rect.left,
+        width: rect.width,
+      });
+    };
+
+    updatePosition();
+
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [showCompanySuggestions, companySuggestions.length, isSearchingCompanies]);
+
+  useEffect(() => {
+    if (!companyModalOpen || typeof window === "undefined") return;
 
     const originalOverflow = document.body.style.overflow;
     const originalPaddingRight = document.body.style.paddingRight;
@@ -197,6 +254,66 @@ export function AuditMetadataForm({
     return parts.join(", ");
   }, [selectedCompany]);
 
+  const dropdownContent =
+    showCompanySuggestions &&
+    (companySuggestions.length > 0 || isSearchingCompanies) ? (
+      <div
+        className="chat-scroll-y fixed z-[99998] max-h-72 overflow-y-auto rounded-2xl border border-white/10 bg-[#0f1012] p-2 shadow-[0_24px_80px_rgba(0,0,0,0.65)] ring-1 ring-white/10"
+        style={{
+          top: dropdownPosition.top,
+          left: dropdownPosition.left,
+          width: dropdownPosition.width,
+        }}
+        onMouseDown={(event) => event.preventDefault()}
+      >
+        {isSearchingCompanies ? (
+          <div className="flex items-center gap-2 px-3 py-3 text-sm text-zinc-300">
+            <Loader2 className="size-4 animate-spin text-[#d4af37]" />
+            Buscando empresas...
+          </div>
+        ) : (
+          companySuggestions.map((item) => {
+            const suggestion = item as CompanyData;
+
+            return (
+              <button
+                key={suggestion.cnpj}
+                type="button"
+                onClick={() => {
+                  setCompanyQuery(
+                    suggestion.label ||
+                      suggestion.razao_social ||
+                      suggestion.nome_fantasia ||
+                      "",
+                  );
+                  setCnpj(formatCnpj(suggestion.cnpj));
+                  setSelectedCompany(suggestion);
+                  setShowCompanySuggestions(false);
+                }}
+                className="w-full rounded-xl px-3 py-3 text-left transition hover:bg-white/10"
+              >
+                <div className="break-words text-sm font-medium text-white">
+                  {suggestion.label ||
+                    suggestion.razao_social ||
+                    suggestion.nome_fantasia}
+                </div>
+
+                <div className="mt-1 break-words text-xs text-zinc-400">
+                  {formatCnpj(suggestion.cnpj)}
+                  {suggestion.municipio || suggestion.uf
+                    ? ` • ${suggestion.municipio ?? ""}${
+                        suggestion.municipio && suggestion.uf ? "/" : ""
+                      }${suggestion.uf ?? ""}`
+                    : ""}
+                  {suggestion.situacao ? ` • ${suggestion.situacao}` : ""}
+                </div>
+              </button>
+            );
+          })
+        )}
+      </div>
+    ) : null;
+
   const modalContent =
     companyModalOpen && selectedCompany ? (
       <div
@@ -207,7 +324,7 @@ export function AuditMetadataForm({
       >
         <div
           className="relative flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-[30px] border border-white/10 bg-[#0b0d10] shadow-[0_30px_120px_rgba(0,0,0,0.78)] ring-1 ring-white/10"
-          onClick={(e) => e.stopPropagation()}
+          onClick={(event) => event.stopPropagation()}
         >
           <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-[#d4af37]/10 via-transparent to-transparent" />
 
@@ -221,6 +338,7 @@ export function AuditMetadataForm({
               <p className="mt-3 text-lg font-semibold text-white sm:text-2xl">
                 Informações da empresa
               </p>
+
               <p className="mt-1 break-words text-sm text-zinc-400 sm:text-base">
                 {companyDisplayName}
               </p>
@@ -247,9 +365,11 @@ export function AuditMetadataForm({
 
                   <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-zinc-400">
                     <span>{formatCnpj(selectedCompany.cnpj)}</span>
+
                     {selectedCompany.situacao && (
                       <span>• {selectedCompany.situacao}</span>
                     )}
+
                     {(selectedCompany.municipio || selectedCompany.uf) && (
                       <span>
                         • {selectedCompany.municipio ?? ""}
@@ -301,6 +421,7 @@ export function AuditMetadataForm({
                   <MapPin className="size-4 shrink-0" />
                   Endereço
                 </div>
+
                 <p className="break-words text-sm leading-6 text-zinc-200">
                   {formattedAddress || "Endereço não informado"}
                 </p>
@@ -313,6 +434,7 @@ export function AuditMetadataForm({
                   <FileSearch className="size-4 shrink-0" />
                   Atividade principal
                 </div>
+
                 <p className="break-words text-sm leading-6 text-zinc-200">
                   {selectedCompany.atividade_principal}
                 </p>
@@ -388,12 +510,12 @@ export function AuditMetadataForm({
                 Empresa
               </span>
 
-              <div className="relative min-w-0">
+              <div ref={companyInputWrapRef} className="relative min-w-0">
                 <input
                   type="text"
                   value={companyQuery}
-                  onChange={(e) => {
-                    const value = e.target.value;
+                  onChange={(event) => {
+                    const value = event.target.value;
                     setCompanyQuery(value);
 
                     if (value.trim().length < 3) {
@@ -402,72 +524,22 @@ export function AuditMetadataForm({
                     }
                   }}
                   onFocus={() => {
-                    if (companySuggestions.length > 0) {
+                    if (companySuggestions.length > 0 || isSearchingCompanies) {
                       setShowCompanySuggestions(true);
                     }
                   }}
                   onBlur={() => {
-                    window.setTimeout(() => {
+                    if (typeof window !== "undefined") {
+                      window.setTimeout(() => {
+                        setShowCompanySuggestions(false);
+                      }, 150);
+                    } else {
                       setShowCompanySuggestions(false);
-                    }, 150);
+                    }
                   }}
                   placeholder="Digite o nome completo da empresa"
                   className={inputClassName}
                 />
-
-                {showCompanySuggestions &&
-                  (companySuggestions.length > 0 || isSearchingCompanies) && (
-                    <div className="chat-scroll-y absolute left-0 right-0 top-full z-30 mt-2 max-h-72 overflow-y-auto rounded-2xl border border-white/10 bg-[#0f1012] p-2 shadow-2xl">
-                      {isSearchingCompanies ? (
-                        <div className="flex items-center gap-2 px-3 py-3 text-sm text-zinc-300">
-                          <Loader2 className="size-4 animate-spin text-[#d4af37]" />
-                          Buscando empresas...
-                        </div>
-                      ) : (
-                        companySuggestions.map((item) => {
-                          const suggestion = item as CompanyData;
-
-                          return (
-                            <button
-                              key={suggestion.cnpj}
-                              type="button"
-                              onClick={() => {
-                                setCompanyQuery(
-                                  suggestion.label ||
-                                    suggestion.razao_social ||
-                                    suggestion.nome_fantasia ||
-                                    "",
-                                );
-                                setCnpj(formatCnpj(suggestion.cnpj));
-                                setSelectedCompany(suggestion);
-                                setShowCompanySuggestions(false);
-                              }}
-                              className="w-full rounded-xl px-3 py-3 text-left transition hover:bg-white/10"
-                            >
-                              <div className="break-words text-sm font-medium text-white">
-                                {suggestion.label ||
-                                  suggestion.razao_social ||
-                                  suggestion.nome_fantasia}
-                              </div>
-                              <div className="mt-1 break-words text-xs text-zinc-400">
-                                {formatCnpj(suggestion.cnpj)}
-                                {suggestion.municipio || suggestion.uf
-                                  ? ` • ${suggestion.municipio ?? ""}${
-                                      suggestion.municipio && suggestion.uf
-                                        ? "/"
-                                        : ""
-                                    }${suggestion.uf ?? ""}`
-                                  : ""}
-                                {suggestion.situacao
-                                  ? ` • ${suggestion.situacao}`
-                                  : ""}
-                              </div>
-                            </button>
-                          );
-                        })
-                      )}
-                    </div>
-                  )}
               </div>
             </label>
           </div>
@@ -480,11 +552,12 @@ export function AuditMetadataForm({
                 <Building2 className="size-3.5 shrink-0" />
                 CNPJ
               </span>
+
               <input
                 type="text"
                 inputMode="numeric"
                 value={cnpj}
-                onChange={(e) => setCnpj(formatCnpj(e.target.value))}
+                onChange={(event) => setCnpj(formatCnpj(event.target.value))}
                 placeholder="00.000.000/0000-00"
                 className={inputClassName}
               />
@@ -499,10 +572,11 @@ export function AuditMetadataForm({
                     <BadgeDollarSign className="size-3.5 shrink-0" />
                     Regime tributário
                   </span>
+
                   <select
                     value={regimeTributario}
-                    onChange={(e) =>
-                      setRegimeTributario(e.target.value as TaxRegime)
+                    onChange={(event) =>
+                      setRegimeTributario(event.target.value as TaxRegime)
                     }
                     className={inputClassName}
                   >
@@ -520,13 +594,14 @@ export function AuditMetadataForm({
                     <CalendarRange className="size-3.5 shrink-0" />
                     Ano fiscal
                   </span>
+
                   <input
                     type="text"
                     inputMode="numeric"
                     value={anoFiscal}
-                    onChange={(e) =>
+                    onChange={(event) =>
                       setAnoFiscal(
-                        e.target.value.replace(/\D/g, "").slice(0, 4),
+                        event.target.value.replace(/\D/g, "").slice(0, 4),
                       )
                     }
                     placeholder="2025"
@@ -541,9 +616,12 @@ export function AuditMetadataForm({
                     <FileText className="size-3.5 shrink-0" />
                     Tipo do documento
                   </span>
+
                   <select
                     value={docType}
-                    onChange={(e) => setDocType(e.target.value as DocumentType)}
+                    onChange={(event) =>
+                      setDocType(event.target.value as DocumentType)
+                    }
                     className={inputClassName}
                   >
                     <option value="documento_contabil">
@@ -562,7 +640,7 @@ export function AuditMetadataForm({
         </div>
 
         {selectedCompany && (
-          <div className="mt-4 rounded-2xl ">
+          <div className="mt-4 rounded-2xl">
             <Button
               type="button"
               variant="ghost"
@@ -576,7 +654,11 @@ export function AuditMetadataForm({
         )}
       </div>
 
-      {mounted && typeof document !== "undefined"
+      {isMounted && typeof document !== "undefined"
+        ? createPortal(dropdownContent, document.body)
+        : null}
+
+      {isMounted && typeof document !== "undefined"
         ? createPortal(modalContent, document.body)
         : null}
     </>
