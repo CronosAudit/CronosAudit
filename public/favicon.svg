@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" width="1000" height="1000"><metadata><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:dc="http://purl.org/dc/elements/1.1/"><rdf:Description><dc:creator>RealFaviconGenerator</dc:creator><dc:source>https://realfavicongenerator.net</dc:source></rdf:Description></rdf:RDF></metadata><style>
+    #light-icon {
+      display: inline;
+    }
+    #dark-icon {
+      display: none;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      #light-icon {
+        display: none;
+      }
+      #dark-icon {
+        display: inline;
+      }
+    }
+  </style><g id="light-icon"><svg xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" width="1000" height="1000"><g clip-path="url(#SvgjsClipPath1377)"><rect width="1000" height="1000" fill="#000000"></rect><g transform="matrix(29.166666666666668,0,0,29.166666666666668,150,150)"><svg xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" width="24" height="24" viewBox="0 0 24 24"><image width="24" height="24" xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAB8klEQVR4AcxV20obURRd05nGENGo1R9oX0rBQh+ah7Y2tbVg+wHtY+nv6Ocoohi8+6A+KAoiqF8gXqNiNOG41jADMXPOBLyHvdiX2XutM4fMOS/wwL+EwFkJy4S5JZYb15sQaGy4a54QaB1AgfBiYsVpaOgrxHnsEwLxg/vyTypwqrc4mERe3oajeXSqzv0sy9vgfgODKQ1kPIyYCbQqrodqLysYVc0AJXkbnAKXAf5xYI2r6zv3MbU/hnbmoR1Oo4O1aSafiLWKwX96qzkFOvtxVK3ih+dhi5OFbAbzIj4p4VWmhkXWPhIb6un6iWPGVnMKqDs/iINaBV8jkfck3vaBXT57pxrJv6mHudNSBTTV9ht7tSqK3CoRd7OWJ/mOhJuRsxdNBdQkGA+evGAMY59Q0gRNBcpj6PEDzMLgdR3XG9WOx9FVV7OGqQIi8FswxxW/5fR6DegWGG+qFgSYUQ9zpzkF9IGJQEScXrn0UWwfwL7A+DNrq0Qve0p7C2hjbDWnQIuHIU70cmsWcz6+62/LPDTF51kUYbDEwofcBYbpreYUYPdfArkAg14/wmNDeYyeLyhfZfEryv9EPuHSBMIzyEYes3T04TCKwzMpim+4NIEbjbdNHl+Ad3F4J8crZp56Pzf0PaM7Oe0eTnmWuJOvAQAA///FHfE3AAAABklEQVQDAN1QyTFFBkinAAAAAElFTkSuQmCC"></image></svg></g></g><defs><clipPath id="SvgjsClipPath1377"><rect width="1000" height="1000" x="0" y="0" rx="150" ry="150"></rect></clipPath></defs></svg></g><g id="dark-icon"><svg xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" width="1000" height="1000"><g><g transform="matrix(41.666666666666664,0,0,41.666666666666664,0,0)"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f5bc00" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-hourglass-icon lucide-hourglass"><path d="M5 22h14"></path><path d="M5 2h14"></path><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"></path><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"></path></svg></g></g></svg></g></svg>

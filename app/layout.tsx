@@ -1,71 +1,85 @@
-// app/layout.tsx
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 
 import { AuthProvider } from "@/contexts/AuthContext";
 
 import "./globals.css";
 
+const SITE_URL = "https://www.chronosaudit.com.br";
+const SITE_NAME = "Chronos Audit";
+
+const TITLE = "Chronos Audit | IA para Auditoria";
+
+const DESCRIPTION =
+  "Plataforma de IA para auditoria com governança, compliance, rastreabilidade e evidências auditáveis.";
+
+/**
+ * IMPORTANTE:
+ * Renomeie o arquivo:
+ * public/og_image (1).png
+ *
+ * para:
+ * public/og-image.png
+ */
+const OG_IMAGE = `${SITE_URL}/og-image.png`;
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
+  display: "swap",
 });
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+  display: "swap",
 });
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#000000",
+  colorScheme: "dark",
+};
+
 export const metadata: Metadata = {
-  metadataBase: new URL("https://www.chronosaudit.com.br/"),
+  metadataBase: new URL(SITE_URL),
 
   title: {
-    default:
-      "Chronos Audit | Plataforma de IA para Auditoria com Governança e Rastreabilidade",
-    template: "%s | Chronos Audit",
+    default: TITLE,
+    template: `%s | ${SITE_NAME}`,
   },
 
-  description:
-    "Chronos Audit é uma plataforma de inteligência artificial para auditoria, com foco em governança, rastreabilidade, conformidade, análise de riscos, documentação de evidências e uso ético da IA.",
+  description: DESCRIPTION,
 
   keywords: [
     "Chronos Audit",
-    "auditoria",
     "auditoria com IA",
     "inteligência artificial para auditoria",
-    "plataforma de auditoria",
     "governança em auditoria",
-    "rastreabilidade de evidências",
     "compliance",
-    "análise de riscos",
-    "auditoria independente",
-    "automação de auditoria",
-    "IA responsável",
-    "auditoria de empresas com IA",
-    "tecnologia para auditoria",
+    "rastreabilidade de evidências",
     "papéis de trabalho",
     "evidências de auditoria",
-    "firmas de auditoria",
-    "auditoria no Brasil",
+    "IA responsável",
+    "auditoria independente",
+    "análise de riscos",
   ],
 
-  authors: [{ name: "Chronos Audit" }],
-
-  creator: "Chronos Audit",
-  publisher: "Chronos Audit",
-
-  applicationName: "Chronos Audit",
-
+  authors: [{ name: SITE_NAME }],
+  creator: SITE_NAME,
+  publisher: SITE_NAME,
+  applicationName: SITE_NAME,
   category: "technology",
 
-  classification:
-    "Business, Audit, Artificial Intelligence, Compliance",
+  alternates: {
+    canonical: SITE_URL,
+  },
 
   robots: {
     index: true,
     follow: true,
     nocache: false,
-
     googleBot: {
       index: true,
       follow: true,
@@ -75,54 +89,87 @@ export const metadata: Metadata = {
     },
   },
 
-  alternates: {
-    canonical: "https://www.chronosaudit.com.br/",
-  },
-
   openGraph: {
     type: "website",
     locale: "pt_BR",
-    url: "https://www.chronosaudit.com.br/",
-
-    siteName: "Chronos Audit",
-
-    title:
-      "Chronos Audit | Plataforma de IA para Auditoria com Governança e Rastreabilidade",
-
-    description:
-      "Plataforma de inteligência artificial para auditoria com foco em governança, rastreabilidade, análise de riscos, conformidade e documentação estruturada de evidências.",
-
+    url: SITE_URL,
+    siteName: SITE_NAME,
+    title: TITLE,
+    description: DESCRIPTION,
     images: [
       {
-        url: "/og-image.jpg",
+        url: OG_IMAGE,
+        secureUrl: OG_IMAGE,
         width: 1200,
         height: 630,
-        alt: "Chronos Audit - Plataforma de IA para Auditoria",
+        alt: "Chronos Audit - IA para Auditoria",
+        type: "image/png",
       },
     ],
   },
 
   twitter: {
     card: "summary_large_image",
-
-    title:
-      "Chronos Audit | Plataforma de IA para Auditoria com Governança e Rastreabilidade",
-
-    description:
-      "Inteligência artificial aplicada à auditoria com uso ético, governança, rastreabilidade e apoio à documentação de evidências.",
-
-    images: ["/og-image.jpg"],
-
+    site: "@Chronosaudit",
     creator: "@Chronosaudit",
+    title: TITLE,
+    description: DESCRIPTION,
+    images: [OG_IMAGE],
   },
 
   icons: {
-    icon: "/favicon.ico",
-    shortcut: "/favicon.ico",
-    apple: "/apple-touch-icon.png",
+    icon: [
+      {
+        url: "/favicon.svg",
+        type: "image/svg+xml",
+      },
+      {
+        url: "/favicon-96x96.png",
+        sizes: "96x96",
+        type: "image/png",
+      },
+      {
+        url: "/favicon.ico",
+        type: "image/x-icon",
+      },
+    ],
+
+    shortcut: [
+      {
+        url: "/favicon.ico",
+        type: "image/x-icon",
+      },
+    ],
+
+    apple: [
+      {
+        url: "/apple-touch-icon.png",
+        sizes: "180x180",
+        type: "image/png",
+      },
+    ],
   },
 
   manifest: "/site.webmanifest",
+
+  other: {
+    "og:image:secure_url": OG_IMAGE,
+    "og:image:type": "image/png",
+    "og:image:width": "1200",
+    "og:image:height": "630",
+    "og:image:alt": "Chronos Audit - IA para Auditoria",
+
+    "twitter:image:alt": "Chronos Audit - IA para Auditoria",
+
+    "theme-color": "#000000",
+
+    "mobile-web-app-capable": "yes",
+    "apple-mobile-web-app-capable": "yes",
+    "apple-mobile-web-app-title": SITE_NAME,
+    "apple-mobile-web-app-status-bar-style": "black-translucent",
+
+    "format-detection": "telephone=no",
+  },
 };
 
 export default function RootLayout({
@@ -130,12 +177,45 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: SITE_NAME,
+    alternateName: "Chronos",
+    applicationCategory: "BusinessApplication",
+    operatingSystem: "Web",
+    url: SITE_URL,
+    image: OG_IMAGE,
+    description: DESCRIPTION,
+    inLanguage: "pt-BR",
+    offers: {
+      "@type": "Offer",
+      price: "0",
+      priceCurrency: "BRL",
+    },
+    publisher: {
+      "@type": "Organization",
+      name: SITE_NAME,
+      url: SITE_URL,
+      logo: `${SITE_URL}/web-app-manifest-512x512.png`,
+    },
+  };
+
   return (
     <html
       lang="pt-BR"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-[#0b0b0c] text-white">
+      <head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(jsonLd),
+          }}
+        />
+      </head>
+
+      <body className="min-h-full flex flex-col bg-[#000000] text-white">
         <AuthProvider>{children}</AuthProvider>
       </body>
     </html>

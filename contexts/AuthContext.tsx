@@ -31,9 +31,14 @@ const PUBLIC_ROUTES = [
   "/",
   "/login",
   "/signup",
+  "/produto",
+  "/empresa",
+  "/documentacao",
+  "/suporte",
   "/planos",
   "/solucoes",
   "/contato",
+  "/central-de-ajuda",
 ];
 
 function isPublicRoute(pathname: string) {

@@ -39,17 +39,20 @@ type NavbarProps = {
 };
 
 export const defaultMenuItems: NavItem[] = [
-  { name: "Soluções", href: "/solucoes" },
+  { name: "Produto", href: "/produto" },
+  { name: "Empresa", href: "/empresa" },
+  { name: "Documentação", href: "/documentacao" },
+  { name: "Suporte", href: "/suporte" },
   { name: "Planos", href: "/planos" },
+  { name: "Contato", href: "/contato" },
 ];
 
 export const dashboardMenuItems: NavItem[] = [
   { name: "Dashboard", href: "/dashboard" },
   { name: "Chat", href: "/chat" },
-    { name: "Projetos", href: "/projetos" },
+  { name: "Projetos", href: "/projetos" },
   { name: "Documentos Exemplo", href: "/dashboard/documentos" },
   { name: "Soluções", href: "/solucoes" },
-  { name: "Planos", href: "/planos" },
 ];
 
 type ResolvedUser = {
